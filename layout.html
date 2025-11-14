@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Ensures proper rendering and touch zooming on mobile devices -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Optional: Description for SEO -->
+    <meta name="description" content="Your page description here">
+    <!-- Optional: Author -->
+    <meta name="author" content="Your Name">
+    <!--Bootstrap-->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-sRIl4kxILFvY47J16cr9ZwB07vP4J8+LH7qKQnuqkuIAvNWLzeN8tE5YBujZqJLB" crossorigin="anonymous">
+    <title>{% block title %}{% endblock %}</title>
+    <!-- Optional: Link to external CSS -->
+    <link rel="stylesheet" href="static/css/styles.css">
+</head>
+<body>
+    <header>
+        <h1>Welcome to the bake sale analytics website</h1>
+        <h2>Current page: {{self.title()}}</h2>
+    </header>
+
+    <main>
+        <!--Nav-->
+        <div class="d-flex gap-4">
+            <a href="/">Home</a>
+            <a href="/history">Transaction History</a>
+            <a href="/inventory">Inventory</a>
+            <a href="/analytics">Analytics</a>
+        </div>
+        <hr>
+        {% block body %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; 2025 Your Name. All rights reserved.</p>
+    </footer>
+
+    <!-- Optional: Link to external JavaScript -->
+    <script src="static/js/script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.bundle.min.js" integrity="sha384-FKyoEForCGlyvwx9Hj09JcYn3nv7wiPVlz7YYwJrWVcXK/BmnVDxM+D2scQbITxI" crossorigin="anonymous"></script>
+</body>
+</html>

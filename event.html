@@ -1,0 +1,72 @@
+{% extends "layout.html" %}
+
+{% block  title %}
+New event
+{% endblock %}
+{% block body %}
+<script>
+    window.itemDeals = {{itemDeals | tojson}}
+</script>
+<link rel="stylesheet" href="static/css/event.css">
+<button id="newSale">New Sale</button>
+<div id="sales" class="container">
+    <div id="sale_template" class="d-none sale">
+        <form class="d-flex gap-3">
+            <label for="item">Item</label>
+            <select id="item">
+                {% for item in itemDeals %}
+                <option value="{{item}}">{{item}}</option>
+                {% endfor %}
+            </select>
+            <input type ="number" id="quantity" min=0 step=1 placeholder="quantity">
+            <text>amount paid: $</text>
+            <text id="amtPaid">0</text>
+            <div id="dealsApplied">
+                <h3>Deals applied</h3>
+            </div>
+            <input type ="number" id="customAmtPaid" placeholder="custom amount paid">
+            <text>date: </text>
+            <text id="date">December</text>
+            <label for="paymentMethod">Cash/Tap</label>
+            <select id="paymentMethod">
+                <option value="cash">Cash</option>
+                <option value="tap">Tap</option>
+            </select>
+            <button id="update">Update</button>
+        </form>
+    </div>
+
+    {% for sale in eventSales %}
+        <div id="{{sale["id"]}}" class="d-flex sale">
+            <form class="d-flex gap-3">
+                <label for="item">Item</label>
+                <select id="item" value={{sale["item"]}}>
+                    {% for item in itemDeals %}
+                    <option value="{{item}}">{{item}}</option>
+                    {% endfor %}
+                </select>
+                <input type ="number" id="quantity" min=0 step=1 placeholder="quantity" value = "{{sale["quantity"]}}">
+                <text>amount paid: $</text>
+                <text id="amtPaid">{{sale["amtPaid"]}}</text>
+                <div id="dealsApplied">
+                    <h3>Deals applied</h3>
+                </div>
+                <input type ="number" id="customAmtPaid" placeholder="custom amount paid" value = "{{sale["amtPaid"]}}">
+                <text>date: {{sale["date"]}}</text>
+                <text id="date">{{sale["saleDate"]}}</text>
+                <label for="paymentMethod">Cash/Tap</label>
+                <select id="paymentMethod" value="{{sale["paymentMethod"]}}">
+                    <option value="cash">Cash</option>
+                    <option value="tap">Tap</option>
+                </select>
+                <button id="update">Update</button>
+            </form>
+        </div>
+    {% endfor %}
+</div>
+
+<p></p>
+<button id="endEvent">End Event</button>
+
+<script src="static/js/event.js"></script>
+{% endblock %}

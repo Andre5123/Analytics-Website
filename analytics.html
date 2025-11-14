@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Analytics
+{% endblock %}
+{% block body %}
+<div id="events">
+    <div id="eventTemplate" style="display: none">
+        <hr>
+        <h2>Event: </h2>
+        <h4 id="totalProfit">Total Profit: </h4>
+        <h4 id="totalRevenue">Total Revenue:</h4>
+        <h4 id="totalCost">Total Cost: </h4>
+        <div class="d-flex gap-2">
+
+        </div>
+    </div>
+</div>
+
+<script src="static/js/analytics.js"></script>
+
+{% endblock %}
