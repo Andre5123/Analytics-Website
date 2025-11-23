@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+
+{% block title %}
+Verify email
+{% endblock %}
+{% block body %}
+<form action="/verify" method="post">
+    {% if error %}<h1>{{error}}</h1>{% endif %}
+
+    {% if codeSent == True %}
+        <input type="text" name="emailCode" placeholder="Enter the code sent to your ocdsb email">
+        <input type="submit" value="Verify">
+
+    {% else %}
+        <input type="text" autocomplete="off" name="email" placeholder="email address (ocdsb only)" autofocus>
+        <input type="submit" value="Send verification email">
+    {% endif %}
+    
+</form>
+
+{% endblock %}

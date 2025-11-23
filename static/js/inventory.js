@@ -7,14 +7,12 @@ const errorMessage = document.querySelector("#errorMessage")
 const itemsContainer = document.querySelector("#items")
 const itemTemplate = itemsContainer.querySelector("#itemTemplate")
 
-
-
 newItemButton = document.querySelector("#newItem")
 // Add new item
 newItemButton.addEventListener("click", ()=>{
     // Client side validation
     console.log(newName.value, newQuantity.value);
-    name = newName.value;
+    let name = newName.value;
     quantity = parseInt(newQuantity.value)
     cost = parseFloat(newCost.value)
     errorMessage.innerHTML = "";
@@ -45,20 +43,14 @@ newItemButton.addEventListener("click", ()=>{
     itemName = newItem.querySelector("#itemName")
     itemName.innerHTML = name;
 
-    //Update the deal template to include the cost of the item
-    const costPerUnit = newItem.querySelector("#costPerItem")
-    costPerUnit.innerHTML = "Cost per item:  $"+newCost.value / newQuantity.value;
-
     itemsContainer.insertBefore(newItem, itemTemplate.nextSibling);
 
     data = {
         "name": name,
-        "buyQuantity": quantity,
+        "quantity": quantity,
         "cost": cost
     }
-    window.items[name] = {};
-    window.items[name]["costPerUnit"] = cost / quantity;
-    console.log(window.items);
+    window.items.push({"name":name, "quantity":quantity, "cost":cost})
     // Update the server that a new item has been added
     fetch("/new-item",{
             method: "POST",
@@ -123,6 +115,7 @@ itemsContainer.addEventListener("click", (event) => {
 
 // Add new deal
 itemsContainer.addEventListener("click", (event) => {
+
     newDealButton = event.target
     if (!(newDealButton.id === "newDeal")) return;
 
@@ -143,16 +136,15 @@ function updateDeal(deal) {
     const id = deal.id || null;
     let itemName = deal.closest(".item").id
     itemName = itemName.replace("item", "")
-    const quantity = Number(deal.querySelector("#sellQuantity").value);
-    const price = Number(deal.querySelector("#price").value);
-
+    const quantity = Number(deal.querySelector("#quantity").value);
+    const revenue = Number(deal.querySelector("#revenue").value);
 
 
     data = {
         "id":id,
         "item":itemName,
         "quantity":quantity,
-        "price":price,
+        "revenue":revenue,
     }
 
     fetch("/update-deal",{
@@ -194,29 +186,25 @@ itemsContainer.addEventListener("click", (event)=>{
 
 // Visual feedback to show that the deal has unsaved changes
 itemsContainer.addEventListener("input", (event)=>{
-    console.log("new input");
     deal = event.target.closest(".deal")
-    console.log("deal")
     if (deal) {
         updateButton = deal.querySelector("#update")
         updateButton.classList.remove("saved");
         updateButton.classList.add("unsaved");
-
         const itemName = deal.closest(".item").id.replace("item", "");
-        const costPerItem = window.items[itemName]["costPerUnit"];
+        const costPerItem = window.items.find(item => item.name === itemName)["unit_cost"];
         const revenuePerItem = deal.querySelector("#revenuePerItem");
         const profitPerItem = deal.querySelector("#profitPerItem");
         const profitPerSale = deal.querySelector("#profitPerSale");
+        const cost = deal.querySelector("#cost")
+        const revenue = deal.querySelector("#revenue").value
+        let quantity = deal.querySelector("#quantity").value
+        quantity = (quantity === "" || quantity===0)? 1 : quantity;
 
-        const price = deal.querySelector("#price").value
-        let sellQuantity = deal.querySelector("#sellQuantity").value
-        sellQuantity = (sellQuantity === "" || sellQuantity===0)? 1 : sellQuantity;
+        cost.innerHTML = "Cost: $"+(costPerItem*quantity).toFixed(2);
+        revenuePerItem.innerHTML = "Revenue per item: $"+(revenue/quantity).toFixed(2);
+        profitPerItem.innerHTML = "Profit per item: $"+(revenue/quantity - costPerItem).toFixed(2);
+        profitPerSale.innerHTML = "Profit per sale: $"+(revenue - costPerItem*quantity).toFixed(2);
 
-
-        revenuePerItem.innerHTML = "Revenue per item: $"+(price/sellQuantity).toFixed(2);
-        profitPerItem.innerHTML = "Profit per item: $"+(price/sellQuantity - costPerItem).toFixed(2);
-        profitPerSale.innerHTML = "Profit per sale: $"+(price - costPerItem*sellQuantity).toFixed(2);
-
-        console.log("updating the thing");
     }
 })

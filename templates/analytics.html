@@ -4,6 +4,9 @@
 Analytics
 {% endblock %}
 {% block body %}
+<script>
+    window.events = {{events | tojson}}
+</script>
 <div id="events">
     <div id="eventTemplate" style="display: none">
         <hr>

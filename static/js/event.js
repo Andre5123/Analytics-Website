@@ -3,9 +3,7 @@ const saleTemplate = document.querySelector("#sale_template")
 
 const salesContainer = document.querySelector("#sales")
 
-const items = fetch("/get-items")
-    .then(response => response.json())
-    .catch(error => console.error("Error:", error));
+const items = window.items
 
 // Create new sale
 newSaleButton.addEventListener("click", ()=>{
@@ -22,17 +20,17 @@ newSaleButton.addEventListener("click", ()=>{
 
 // This function calculates the cheapest price for the sale of a quantity of an item, based on the best combination of that item's deals.
 function calculatePrice(itemName, quantity) {
-    deals = window.itemDeals[itemName];
+    deals = window.items.find(item => item.name === itemName).deals;
 
     if (deals.length == 0){
         console.log("error, this item has no deals");
-        return 0;
+        return {"price": 0, "dealsApplied": []};
     }
     price = 0;
     // Get the cost per unit for every deal
     for (let i =0; i < deals.length; i++) {
         // Deal does not apply since the deal's quantity is larger than the sale's.
-        deals[i]["pricePerItem"] = deals[i]["price"]/ deals[i]["quantity"]
+        deals[i]["revenuePerItem"] = deals[i]["revenue"]/ deals[i]["quantity"]
     }
 
     // To keep tabs on all of the deals that are used
@@ -42,7 +40,7 @@ function calculatePrice(itemName, quantity) {
         let cheapestDealIndex = 0;
         for (let i=1; i<deals.length; i++) {
             // Find the cheapest deal that is within the quantity range
-            if (deals[i]["pricePerItem"] < deals[cheapestDealIndex]["pricePerItem"] && deals[i]["quantity"] <= quantity) {
+            if (deals[i]["revenuePerItem"] < deals[cheapestDealIndex]["revenuePerItem"] && deals[i]["quantity"] <= quantity) {
                 cheapestDealIndex = i;
 
             }
@@ -55,9 +53,9 @@ function calculatePrice(itemName, quantity) {
         if (cheapestDeal["quantity"] > quantity) {
             quantityCovered = quantity;
         }
-        price += quantityCovered * cheapestDeal["pricePerItem"];
+        price += quantityCovered * cheapestDeal["revenuePerItem"];
         quantity -= quantityCovered;
-        dealsApplied.push({"dealQuantity": cheapestDeal["quantity"], "dealPrice": cheapestDeal["price"], "quantityCovered":quantityCovered})
+        dealsApplied.push({"dealQuantity": cheapestDeal["quantity"], "dealPrice": cheapestDeal["revenue"], "quantityCovered":quantityCovered})
     }
     return {"price": price, "dealsApplied": dealsApplied};
 }
@@ -76,7 +74,7 @@ salesContainer.addEventListener("input", (event)=>{
         let itemName = sale.querySelector("#item").value;
         let quantity = sale.querySelector("#quantity").value;
         price = calculatePrice(itemName, quantity);
-        amtPaid.textContent = (customAmtPaid.value == "")? price["price"]: customAmtPaid.value;
+        amtPaid.textContent = (customAmtPaid.value == "")? (price["price"]).toFixed(2): customAmtPaid.value;
 
          let dealsApplied = price["dealsApplied"]
         let dealsAppliedCont = sale.querySelector("#dealsApplied")
@@ -93,7 +91,7 @@ salesContainer.addEventListener("input", (event)=>{
         }
     }
 })
-
+// Updates the server that a new sale has been added or an existing one was modified
 function updateSale(sale) {
     const id = sale.id || null;
     const item = sale.querySelector("#item").value;
@@ -106,11 +104,10 @@ function updateSale(sale) {
         "id":id,
         "item":item,
         "quantity":quantity,
-        "amtPaid":amtPaid,
-        "date":date,
-        "paymentMethod":paymentMethod
+        "revenue":amtPaid,
+        "sale_time":date,
+        "payment_method":paymentMethod
     }
-
 
     fetch("/update-sale",{
             method: "POST",
@@ -128,7 +125,7 @@ function updateSale(sale) {
             console.log("Sale successfully saved")
         }
         else {
-            console.log("Error, sale did not successfully save")
+            console.log("Error, sale did not successfully save", data)
         }
     })
     .catch(error => console.error("Error:", error));

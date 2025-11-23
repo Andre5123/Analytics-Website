@@ -4,9 +4,18 @@
 Home
 {% endblock %}
 {% block body %}
+<script>
+    window.eventActive = {{eventActive | tojson}}
+</script>
 <form>
-    <input type="button" id="eventButton" value="Create new event">
+    {% if eventActive %}
+        <input type="button" id="eventButton" value="Continue event">
+    {% else %}
+        <input type="button" id="eventButton" value="Create new event">
+    {% endif %}
+    <h3 id="errorMessage"></h3>
 </form>
 
+<a href="/login">Logout</a>
 <script src="static/js/home.js"></script>
 {% endblock %}

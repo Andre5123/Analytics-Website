@@ -16,17 +16,27 @@
 </head>
 <body>
     <header>
-        <h1>Welcome to the bake sale analytics website</h1>
+        <h1>Welcome to the bake sale analytics website{% if session.get("email") %}, {{session.get("email")}}{% endif %}</h1>
         <h2>Current page: {{self.title()}}</h2>
     </header>
 
     <main>
         <!--Nav-->
         <div class="d-flex gap-4">
-            <a href="/">Home</a>
-            <a href="/history">Transaction History</a>
-            <a href="/inventory">Inventory</a>
-            <a href="/analytics">Analytics</a>
+            {% if session["user_id"] %}
+                <a href="/">Home</a>
+                <a href="/history">Transaction History</a>
+                <a href="/inventory">Inventory</a>
+                <a href="/analytics">Analytics</a>
+            {% else %}
+                <!--Going to the login page clears the user's session, which can be detrimental if the user is 
+                still trying to register after having verified their email. So only an option for login if they are not email-verified-->
+                {% if not session["emailCode"] %} 
+                    <a href="/login">Login</a>
+                {% endif %} 
+                <a href="/register">Register</a>
+            {% endif %}
+
         </div>
         <hr>
         {% block body %}{% endblock %}

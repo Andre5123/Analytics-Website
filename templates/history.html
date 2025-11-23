@@ -5,15 +5,15 @@ History
 {% endblock %}
 {% block body %}
 <div>
-    {% for event_id, event in events.items() %}
-        <h2>Event: {{event.eventStart}}</h2>
-        {% for sale in event.sales %}
+    {% for event in events %}
+        <h2>Event: {{event['start_date']}} - {{event['end_date'] or ""}}</h2>
+        {% for sale in event['sales'] %}
             <div class="d-flex gap-2">
                 <text>Sold: {{sale.item}}</text>
                 <text>Quantity: {{sale.quantity}}</text>
-                <text>Amount paid: {{sale.amtPaid}}</text>
-                <text>Date: {{sale.date}}</text>
-                <text>Payment Method: {{sale.paymentMethod}}</text>
+                <text>Amount paid: {{sale.revenue}}</text>
+                <text>Date: {{sale.sale_time}}</text>
+                <text>Payment Method: {{sale.payment_method}}</text>
             </div>
             <hr>
         {% endfor %}

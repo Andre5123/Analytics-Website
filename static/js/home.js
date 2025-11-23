@@ -1,19 +1,10 @@
-const eventButton = document.querySelector("#eventButton")
 
-// Check if an event is ongoing when loading the page
-fetch("/event-status")
-    .then(response => response.json())
-    .then(eventStatus => {
-        CurrentEvent = eventStatus.active;
-        if (CurrentEvent) {
-            eventButton.value = "Continue event"
-        }
-        else {
-            eventButton.value = "Create new event"
+// When the page loads, the server passes a bool through Jinja for if an event is currently active
+let CurrentEvent = window.eventActive;
 
-        }
-    })
-    .catch(error => console.error("Error:", error));
+const eventButton = document.querySelector("#eventButton");
+
+console.log(CurrentEvent, "event active?")
 
 
 
@@ -27,15 +18,21 @@ eventButton.addEventListener("click", ()=>{
             body: JSON.stringify({"eventStatus": true})
         })
         .then(response => response.json())
-        .then(event => {
-            if (event.success == true){
+        .then(data => {
+            if (data.success == true){
                 if (CurrentEvent == true){
                     eventButton.value = "Continue event";
                     window.location.href = "/event";
                 }
             }
             else {
-                console.log("An error occurred trying to update the server");
+                errorText = document.querySelector("#errorMessage");
+                errorText.innerHTML = data.error;
+
+                if (data.error === "Error: someone has already started an event") {
+                    eventButton.value = "Continue event";
+                }
+                console.log("An error occurred trying to update the server", data.error);
             }
         })
         .catch(error => console.log(error));

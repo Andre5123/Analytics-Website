@@ -1,28 +1,49 @@
 from flask import Flask, redirect, render_template, request, session, jsonify
 from flask_session import Session
-from helpers import toSQLDATETIME, toJSStringDate
+from helpers import toSQLDATETIME, toJSStringDate, login_required, email_verification_required, \
+    startEvent, stopEvent, getEventStatus, addSale, updateSale, getPastEvents, getItems, \
+    updateItem, deleteItem, updateDeal, checkLogin, send_verification_code,createUser, getUserId
 from cs50 import SQL
 from datetime import datetime
+from supabase import create_client
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from validator import validator
 
-app = Flask("__name__")
+import os
+from dotenv import load_dotenv
 
-eventStatus = {
-    "active": False,
-    "id": 0
-    }
+load_dotenv()
+
+from supabase_client import supabase
+
+
+
+app = Flask(__name__)
+
+app.config["SESSION_PERMANENT"] = False
+app.config["SESSION_TYPE"] = "filesystem"
+Session(app)
+
+
 currentSales = {}
 
 db = SQL("sqlite:///database.db")
-# APIs
 
-
+# Client-to-Server APIs
+# ---------------------------------------------------------------
 @app.route("/event-status", methods=["GET", "POST"])
 def getEvent():
     if request.method == "GET":
-        return jsonify(eventStatus)
+        eventData = getEventStatus()
+        if (eventData):
+            return jsonify(eventData["active"])
+        else:
+            return jsonify(False)
     elif request.method == "POST":
         data = request.get_json()
-        newStatus = data.get("eventStatus", eventStatus)
+        newStatus = data.get("eventStatus")
 
         # Validation of data
         if (newStatus != True and newStatus != False):
@@ -30,54 +51,29 @@ def getEvent():
             return "Error: json request not formatted correctly"
 
         #Return values
-        eventStatus["active"] = newStatus
         if newStatus == True:
-            print("now creating event")
-            startDate = datetime.now()
-            startDate = startDate.isoformat(" ")
-            eventId = db.execute("INSERT INTO events (startDate) VALUES (?)", startDate)
-            eventStatus["id"] = eventId
+            # Check if event has already started
+            success = startEvent()
+
+            if not success:
+                return jsonify({
+                            "success": False,
+                            "status": True,
+                            "error": "Error: someone has already started an event"
+                        })
         else:
-            endDate = datetime.now()
-            endDate = endDate.isoformat(" ")
-            db.execute("UPDATE events SET endDate = ? WHERE (id = ?)", endDate, eventStatus["id"])
+            result = stopEvent()         
         return jsonify({
             "success": True,
             "status": newStatus
             })
+    
 
-@app.route("/past-events", methods=["GET"])
-def pastEvents():
-    pastEvents = db.execute("SELECT events.id, events.startDate, events.endDate, sales.event_id, sales.item, sales.quantity, sales.amtPaid, sales.saleDate, sales.paymentMethod FROM sales JOIN events ON (events.id = sales.event_id) ORDER BY sales.event_id DESC")
-    events = {}
-    for row in pastEvents:
-        eventId = row["event_id"]
-        if eventId not in events:
-            events[eventId] = {"eventStart":row["startDate"],
-                                   "eventEnd": row["endDate"],
-                                   "sales": []
-                                   }
-        events[eventId]["sales"].append({"item": row["item"],
-                                    "quantity": row["quantity"],
-                                    "amtPaid": row["amtPaid"],
-                                    "saleDate": row["saleDate"],
-                                    "paymentMethod": row["paymentMethod"]})
-    items = db.execute("SELECT * FROM items")
-    print(events)
-    return jsonify({"events":events, "items":items})
-
-@app.route("/get-items", methods=["GET"])
-def getItems():
-    items = db.execute("SELECT * FROM items")
-    itemCosts = {}
-    for item in items:
-        itemCosts[item["name"]] = {"costPerItem": item["cost"]/item["buyQuantity"]}
-    return jsonify(itemCosts)
 
 @app.route("/update-sale", methods=["POST"])
-def updateSale():
+def saleUpdate():
     #TODO: Validate data
-    sale = request.get_json();
+    sale = request.get_json()
 
     print(sale)
     if not sale:
@@ -86,146 +82,182 @@ def updateSale():
     print(sale)
 
     saleId = sale.get("id")
-    item = sale.get("item")
-    quantity = sale.get("quantity")
-    paid = sale.get("amtPaid")
-    date = sale.get("date")
-    date = toSQLDATETIME(date);
-    paymentMethod = sale.get("paymentMethod")
-    #Todo: Better validation
-    if not item or not isinstance(quantity, int) or quantity <0 or not isinstance(paid, (int, float)) or paid<0 or not date or not paymentMethod:
-        return jsonify({"error":"JSON data incorrectly formatted"}), 400
+
+    # Validate sale data
+    valid, error = validator.sale_data(sale)
+    if not valid: 
+        return jsonify(error)
+    
 
     # Newly created sale
     if not saleId:
-        newId = db.execute("INSERT INTO sales (event_id, item, quantity, amtPaid, saleDate, paymentMethod) VALUES (?,?,?,?,?,?)", eventStatus["id"], item, quantity, paid, date, paymentMethod)
-        return jsonify({"saleId":newId, "success":True})
+        success, content = addSale(sale)
+        if not success:
+            print("Error: ", content["error"])
+        return jsonify(content)
     else:
-        db.execute("UPDATE sales SET item = ?, quantity = ?, amtPaid = ?, saleDate = ?, paymentMethod = ? WHERE id = ?", item, quantity, paid, date, paymentMethod, saleId)
-        return jsonify({"success":True})
+        success, content = updateSale(sale)
+        if not success:
+            print("Error: ", content["error"])
+        return jsonify(content)
 
 @app.route("/new-item", methods=["POST"])
-def updateItem():
-    #TODO: Validate data
+def newItem():
+    #TODO: Validate data, check if Item id is a number, check if item name already used
     #Check if item already exists
-
     item = request.get_json()
-    print(item)
-    name = item.get("name")
-    quantity = item.get("buyQuantity")
-    cost = item.get("cost")
-    itemId = db.execute("INSERT INTO items (name, buyQuantity, cost) VALUES (?,?,?)", name, quantity, cost)
-    return jsonify({"success":True})
+
+    #Add validator here
+
+    success, content = updateItem(item)
+    return jsonify(content)
+    
 
 @app.route("/delete-item", methods=["POST"])
-def deleteItem():
+def removeItem():
     #TODO: Validate data
     #Check if item exists
 
     item = request.get_json()
-    print(item)
-    name = item.get("name")
-    itemId = db.execute("SELECT id FROM items WHERE name = ?", name)[0]["id"]
-    # delete the deals associate with the item
-    db.execute("DELETE FROM deals WHERE product_id = ?", itemId)
-    # delete the item
-    db.execute("DELETE FROM items WHERE id = ?", itemId)
-    return jsonify({"success":True})
+    success, content = deleteItem(item)
+    return jsonify(content)
 
 @app.route("/update-deal", methods=["POST"])
-def updateDeal():
+def changeDeal():
     #TODO: Validate data
     #TODO: Check that dealId is valid
 
     deal = request.get_json()
-    print(deal)
-    dealId = deal.get("id")
-    itemName = deal.get("item")
-    quantity = deal.get("quantity")
-    price = deal.get("price")
+    
+    success, content = updateDeal(deal)
+    return jsonify(content)
+# Pages ----------------------------
 
-    item_id = db.execute("SELECT id FROM items WHERE name = ?", itemName)[0]["id"];
 
-    # Make a new deal
-    if not dealId:
+# Login pages:
 
-        dealId = db.execute("INSERT INTO deals (product_id, quantity, price) VALUES (?,?,?)", item_id, quantity, price)
-        return jsonify({"dealId": dealId, "success":True})
-    # Update existing deal
-    else:
-        db.execute("UPDATE deals SET quantity = ?, price = ? WHERE id = ?", quantity, price, dealId)
-    return jsonify({"success":True})
+@app.route("/verify", methods=["GET", "POST"])
+def verify():
+    if request.method == "GET":
+        return render_template("verify.html", codeSent=False)
+
+    if request.method == "POST":
+        if not request.form.get("emailCode"):
+            # Send the code via email
+            email = request.form.get("email")
+            session["emailToVerify"] = email
+            if getUserId(email):
+                return render_template("verify.html", codeSent = False, error = "There is already a user associated with this email")
+            
+
+            #TODO: Check that the email doesn't already have an account
+            code = send_verification_code(email)
+            session["emailCode"] = code
+            return render_template("verify.html", codeSent = True)
+        else:
+            # TODO: Verify the user entered the correct email code
+            emailCode = request.form.get("emailCode")
+
+            if emailCode == session["emailCode"]:
+                session["email"] = session["emailToVerify"]
+                return redirect("/register")
+            else:
+                return render_template("verify.html", codeSent = False, error = "The verification code you entered was not correct. Try again.")
+
+
+@app.route("/register", methods=["GET", "POST"])
+@email_verification_required
+def register():
+    if request.method == "GET":
+        return render_template("register.html", code_sent=False, email = session["email"])
+    if request.method == "POST":
+        password = request.form.get("password")
+        confirmation = request.form.get("confirmPassword")
+
+        if password == None or password == "":
+            return render_template("register.html", code_sent=False, email = session["email"], error="Please enter a password.")
+        
+        if password != confirmation:
+            return render_template("register.html", code_sent=False, email = session["email"], error="Passwords do not match each other.")
+        
+        newUserId = createUser(session["email"], password)
+        session["user_id"] = newUserId
+        return redirect("/")
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    session.clear()
+    if request.method == "GET":
+        return render_template("login.html")
+    elif request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
+        
+        loginSuccessful, content = checkLogin(email, password)
+        if loginSuccessful:
+            print("login successful, so it should work now right?")
+            return redirect("/")
+        else:
+            return render_template("login.html", loginFailed=True)
+
+# Content pages:
+
 @app.route("/")
+@login_required
 def index():
-    return render_template("home.html")
+    status = getEventStatus()
+    if status:
+        status = True
+    else:
+        status = False
+    return render_template("home.html",eventActive=status)
 
 @app.route("/history")
+@login_required
 def history():
-    rows = db.execute("SELECT events.id, events.startDate, events.endDate, sales.event_id, sales.item, sales.quantity, sales.amtPaid, sales.saleDate, sales.paymentMethod FROM sales JOIN events ON (events.id = sales.event_id) ORDER BY sales.event_id DESC")
-    events = {}
-    for row in rows:
-        print("THIS IS THE ROW", row)
-        eventId = row["event_id"]
-        if eventId not in events:
-            events[eventId] = {"eventStart":row["startDate"],
-                                   "eventEnd": row["endDate"],
-                                   "sales": []
-                                   }
-        events[eventId]["sales"].append({"item": row["item"],
-                                    "quantity": row["quantity"],
-                                    "amtPaid": row["amtPaid"],
-                                    "saleDate": row["saleDate"],
-                                    "paymentMethod": row["paymentMethod"]
-                                    })
-
+    events = getPastEvents()
     return render_template("history.html", events = events)
 
-
 @app.route("/analytics")
+@login_required
 def analytics():
-    return render_template("analytics.html")
+    events = getPastEvents()
+    items = getItems(True)
+    print(events)
+
+    return render_template("analytics.html", events = events, items=items)
 
 @app.route("/inventory", methods=["GET", "POST"])
+@login_required
 def Inventory():
     if request.method == "GET":
-        itemDeals = {}
-        items = db.execute("SELECT * FROM items")
-        if items:
-            for item in items:
-                deals = db.execute("SELECT * FROM deals WHERE product_id = ? ORDER BY quantity ASC, price ASC", item["id"])
-                itemDeals[item["name"]] = deals
-        else:
-            print("none")
+        items = getItems(True)
 
-        itemCosts = {}
         for item in items:
-            itemCosts[item["name"]] = {"costPerUnit": item["cost"]/item["buyQuantity"]}
-
-        return render_template("inventory.html", itemDeals = itemDeals, itemCosts=itemCosts)
-
+            item["unit_cost"] = item["cost"] / item["quantity"]
+        return render_template("inventory.html", items=items)
 
 @app.route("/event")
+@login_required
 def Event():
     #TODO: Re-add sales automatically when page reloads
-    print(eventStatus["active"], "the new status")
-    if eventStatus["active"] == True:
-        itemList = db.execute("SELECT id, name FROM items")
+    eventStatus = getEventStatus()
+    if eventStatus:
+        items = getItems(True) # A list of all items and their deals
 
-        # Pass along all of the deals for each item
-        itemDeals = {}
-        for item in itemList:
-            itemId = item["id"]
-            deals = db.execute("SELECT * FROM deals WHERE product_id = ? ORDER BY quantity ASC, price ASC", itemId)
-            itemDeals[item["name"]] = deals
+        current_event_id = supabase.table("event_lock").select("current_event_id").execute().data[0]["current_event_id"]
+
+        #TODO: add validation for if current_event_id is null
 
         # Previous sales made during this event
-        eventSales = db.execute("SELECT id, item, quantity, amtPaid, saleDate, paymentMethod FROM sales WHERE event_id= ?", eventStatus["id"])
+        sales = supabase.table("sales") \
+            .select("*") \
+            .eq("event_id", current_event_id) \
+            .eq("user_id", session["user_id"]) \
+            .execute().data     
 
-        for sale in eventSales:
-            sale["saleDate"] = toJSStringDate(sale["saleDate"])
-
-
-        return render_template("event.html", itemDeals=itemDeals, eventSales=eventSales)
+        print("THE SALES ARE", sales)
+        return render_template("event.html", items=items, eventSales=sales)
     else:
         return jsonify("No event currently being held");
 

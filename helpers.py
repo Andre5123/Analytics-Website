@@ -1,11 +1,23 @@
 from datetime import datetime
 import pytz
 
+from flask import redirect, render_template, session
+from functools import wraps
+from supabase_client import supabase
+
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+import secrets
+
+from werkzeug.security import check_password_hash, generate_password_hash
+
+
+
 def toSQLDATETIME(date): #JSON file
     try:
         newDate = datetime.fromisoformat(date.replace("Z", "+00:00"))
         newDate = newDate.strftime("%Y-%m-%d %H:%M:%S")
-        print(newDate)
         return newDate
     except ValueError as e:
         print("Parsing Error:",e)
@@ -28,3 +40,344 @@ def toJSStringDate(date): #From SQL format
     gmt_offset = dt.strftime("GMT%z")
     tzname = "Eastern Standard Time"
     return f"{weekday} {month} {day} {year} {time} {gmt_offset} ({tzname})"
+
+def login_required(f):
+
+    loginEnabled = True
+    # For debug testing
+    
+    """
+    Decorate routes to require login.
+
+    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # For debug
+        if loginEnabled and session.get("user_id") == "Insert ID":
+            session["user_id"] = None
+        elif not loginEnabled and session.get("user_id") is None:
+            session["user_id"] = "Insert ID"
+
+        if session.get("user_id") is None or session.get("email") is None:
+            return redirect("/login")
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+def email_verification_required(f):
+    """
+    Decorate routes to require email verification.
+
+    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
+    """
+
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if session.get("email") is None or session.get("email") == False:
+            return redirect("/verify")
+        return f(*args, **kwargs)
+
+    return decorated_function
+
+def send_email(to_email, subject, body):
+    sender_email = "polarpenguin878@gmail.com"
+    app_password = "hslskxtigfyibpjh"  # 16-digit password from Google
+
+    # Create message
+    msg = MIMEMultipart()
+    msg["From"] = sender_email
+    msg["To"] = to_email
+    msg["Subject"] = subject
+    msg.attach(MIMEText(body, "plain"))
+
+    # Send email
+    with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        server.starttls()  # secure the connection
+        server.login(sender_email, app_password)
+        server.sendmail(sender_email, to_email, msg.as_string())
+
+def send_verification_code(recipient):
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    text = "Here is the verification code: "+code+".Put this in the bake-sale analytics website to verify your identity. "
+    send_email(recipient, "Your verification code", text)
+    return code
+
+
+# Supabase database helper functions
+# ---------------------------------------------------
+
+# Login
+
+def checkLogin(email, password):
+    # TODO: username and email validation
+    
+    user_info = supabase.table("users") \
+        .select("id, password") \
+        .eq("email", email) \
+        .execute().data
+    
+    if user_info != []:
+        if check_password_hash(user_info[0]["password"], password):
+            session["user_id"] = user_info[0]["id"]
+            session["email"] = email
+            return True, {"success":True}
+        else:
+            return False, {"success":False, "error":"Incorrect password / email"}
+    else:
+        return False, {"success":False, "error":"Incorrect password / email"}
+
+# Create new user:
+
+def getUserId(email):
+    id = supabase.table("users") \
+        .select("id") \
+        .eq("email", email) \
+        .execute().data
+    if id != []:
+        return id
+    return None
+
+def createUser(email, password):
+    # TODO: username and email validation
+    
+    if getUserId(email):
+        return False, {"success":False, "error":"There is already a user associated with this email"}
+
+    user_info = supabase.table("users") \
+        .insert({"email": email, "password":generate_password_hash(password)}) \
+        .execute().data
+    return True, {"success":True, "id":user_info}
+    
+
+
+# Events & Event_Lock Table
+
+# Atomic queries to prevent race conditions on starting events
+def startEvent():
+    result = supabase.table("event_lock") \
+        .update({"active": True}) \
+        .eq("id", 1) \
+        .eq("active", False) \
+        .execute()
+    
+    if result.data == []:
+        return False # Failed to start event, someone has already started an event
+    else:
+        # Success!
+
+        # Make a new entry in the event table
+        response = supabase.table("events").insert({
+            "start_date": datetime.now(pytz.UTC).strftime("%Y-%m-%d %H:%M:%S")
+        }).execute()
+
+        newEventId = response.data[0]["id"]
+
+        # Update the event lock to include the current event's id
+        supabase.table("event_lock") \
+            .update({"current_event_id": newEventId}) \
+            .eq("id", 1) \
+            .eq("active", True) \
+            .execute()
+        
+        return True
+
+def stopEvent():
+
+    lock_row = supabase.table("event_lock") \
+        .select("current_event_id") \
+        .eq("id", 1) \
+        .eq("active", True) \
+        .execute()
+    
+    if not lock_row.data:
+        return None #No active event to stop
+    
+    current_event_id = lock_row.data[0]["current_event_id"] # Save the id of the event that will be stopped
+    # Stop the event
+    supabase.table("event_lock") \
+        .update({"active": False, "current_event_id": None}) \
+        .eq("id", 1) \
+        .eq("active", True) \
+        .execute()
+    
+    # Update the current event's entry
+    
+    if current_event_id is not None:
+        supabase.table("events") \
+            .update({"end_date": datetime.now(pytz.UTC).strftime("%Y-%m-%d %H:%M:%S")}) \
+            .eq("id", current_event_id) \
+            .is_("end_date", None) \
+            .execute()
+    
+    #Return the id of the stopped event
+    return current_event_id
+
+def getEventStatus():
+    result = supabase.table("event_lock") \
+        .select("active, current_event_id") \
+        .eq("id", 1) \
+        .execute()
+    if not result.data:
+        return False
+    if result.data[0]["current_event_id"] is None or not result.data[0]["active"]:
+        return False
+
+    return result.data[0]
+
+# Sales table
+
+def addSale(sale):
+    currentEvent = supabase.table("event_lock") \
+        .select("active, current_event_id") \
+        .eq("id", 1) \
+        .execute()
+    
+    if not currentEvent.data:
+        return False, {"success":False,"error": "could not find event_lock entry"}
+    
+    event_id = currentEvent.data[0]["current_event_id"]
+    event_active = currentEvent.data[0]["active"]
+    if not event_active or not event_id:
+        return False, {"success":False, "error": "event is inactive / has been closed"}
+    
+    # Assumes data has already been server-validated
+
+    itemName = sale.get("item")
+    itemData = supabase.table("items").select("*").eq("name", itemName).execute().data[0]
+    unitCost = itemData["cost"] / itemData["quantity"]
+    totalCost = unitCost * sale.get("quantity")
+    newSale = supabase.table("sales").insert({
+        "event_id": event_id,
+        "item": sale.get("item"),
+        "quantity": sale.get("quantity"),
+        "revenue": sale.get("revenue"),
+        "cost": totalCost,
+        "sale_time": toSQLDATETIME(sale.get("sale_time")),
+        "payment_method": sale.get("payment_method"),
+        "user_id": session["user_id"]
+    }).execute()
+
+    sale_id = newSale.data[0]["id"]
+
+    return True, {"success":True, "saleId":sale_id}
+    
+
+def updateSale(sale):
+    saleId = sale.get("id")
+    if not saleId or not not isinstance(saleId, int):
+        return False, {"success":False, "error": "server did not provide a sale id"}
+
+    result = supabase.table("sales").update({
+        "item": sale.get("item"),
+        "quantity": sale.get("quantity"),
+        "revenue": sale.get("revenue"),
+        "sale_time": toSQLDATETIME(sale.get("sale_time")),
+        "payment_method": sale.get("payment_method")
+    }) \
+    .eq("id", saleId) \
+    .execute()
+
+
+    return True, {"success":True}
+    
+def getPastEvents():
+    events = supabase.table("events") \
+        .select("id, start_date, end_date") \
+        .order("start_date", desc=True) \
+        .execute()
+    events = events.data # Table containing all event entries
+    for event in events:
+
+        eventId = event["id"]
+        sales = supabase.table("sales") \
+        .select("*") \
+        .eq("event_id", eventId) \
+        .order("sale_time", desc=True) \
+        .execute()
+        event["sales"] = sales.data
+    return events
+
+def getItems(includeDeals):
+    items = supabase.table("items") \
+        .select("*") \
+        .execute()
+    
+    items = items.data
+
+    if includeDeals:
+        for item in items:
+            product_id = item["id"]
+            deals = supabase.table("deals") \
+                .select("*") \
+                .eq("product_id", product_id) \
+                .order("quantity") \
+                .order("revenue") \
+                .execute()
+            item["deals"] = deals.data
+
+    
+    return items
+
+
+# Updates an existing item or adds a new one
+def updateItem(item):
+    # Update item if item already exists
+    if item.get("id") is None: # item does not exist, add new item
+        newItem = supabase.table("items").insert({
+            "name": item.get("name"),
+            "quantity": item.get("quantity"),
+            "cost": item.get("cost"),
+        }).execute()
+    else: #item exists, update item
+        item = supabase.table("items") \
+            .update({"name": item.get("name"),
+                    "quantity": item.get("quantity"),
+                    "cost": item.get("cost")
+                    }) \
+            .eq("id", item.get("id")) \
+            .execute()
+    
+    return True, {"success":True}
+
+# Delete item
+def deleteItem(item):
+    # Update item if item already exists
+    print("ITEM TO DELETE:", item)
+
+    product_id = supabase.table("items").select("id").eq("name", item.get("name")).execute().data[0]["id"]
+
+    result = supabase.table("deals").delete() \
+    .eq("product_id", product_id) \
+    .execute()
+
+    result = supabase.table("items").delete() \
+    .eq("name", item.get("name")) \
+    .execute()
+    
+    return True, {"success":True}
+
+
+# Update a deal on an item
+def updateDeal(deal):
+    dealId = deal.get("id")
+    itemName = deal.get("item")
+    product_id = supabase.table("items").select("id").eq("name", itemName).execute().data[0]["id"]
+    quantity = deal.get("quantity")
+    revenue = deal.get("revenue")
+   
+    if dealId is None: # item does not exist, add new item
+        newDeal = supabase.table("deals").insert({
+            "product_id": product_id,
+            "quantity": quantity,
+            "revenue": revenue,
+        }).execute()
+    else: #item exists, update item
+        newDeal = supabase.table("deals").update({
+            "quantity": quantity,
+            "revenue": revenue,
+        }) \
+        .eq("id", dealId) \
+        .execute()
+    return True, {"success": True}
