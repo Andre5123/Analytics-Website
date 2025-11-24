@@ -11,8 +11,11 @@ from email.mime.multipart import MIMEMultipart
 import secrets
 
 from werkzeug.security import check_password_hash, generate_password_hash
+import resend
 
+import os
 
+resend.api_key = os.environ.get("RESEND_API_KEY")
 
 def toSQLDATETIME(date): #JSON file
     try:
@@ -82,21 +85,12 @@ def email_verification_required(f):
     return decorated_function
 
 def send_email(to_email, subject, body):
-    sender_email = "polarpenguin878@gmail.com"
-    app_password = "hslskxtigfyibpjh"  # 16-digit password from Google
-
-    # Create message
-    msg = MIMEMultipart()
-    msg["From"] = sender_email
-    msg["To"] = to_email
-    msg["Subject"] = subject
-    msg.attach(MIMEText(body, "plain"))
-
-    # Send email
-    with smtplib.SMTP("smtp.gmail.com", 587) as server:
-        server.starttls()  # secure the connection
-        server.login(sender_email, app_password)
-        server.sendmail(sender_email, to_email, msg.as_string())
+    r = resend.Emails.send({
+      "from": "onboarding@resend.dev",
+      "to": to_email,
+      "subject": subject,
+      "html": "<p>"+body+"</p>"
+    })
 
 def send_verification_code(recipient):
     code = f"{secrets.randbelow(1_000_000):06d}"
