@@ -23,18 +23,18 @@ New event
                 <span id="item"></span>
             </div>
             
-            <input type ="number" id="quantity" class="fit-box col-1" min=0 step=1 placeholder="quantity">
+            <input type ="number" id="quantity" class="fit-box col-1" min=0 step=1 placeholder="quantity" style="background-color:burlywood;">
             <span class="col-1">amount paid: $</span>
             <span class="col-1" id="amtPaid">0</span>
             <div id="dealsApplied" style="height: 100px;" class="scroll-box col-1">
                 <h6>Deals applied</h6>
             </div>
-            <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid">
+            <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid" style="background-color:rgba(250, 235, 215, 0.838);">
             <span class="col-1">date: </span>
             <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">December</span>
             <div class="col-1">
                 <label for="paymentMethod">Cash/Tap</label>
-                <select id="paymentMethod">
+                <select id="paymentMethod" style="background-color: burlywood;">
                     <option value="cash">Cash</option>
                     <option value="tap">Tap</option>
                 </select>
@@ -52,18 +52,18 @@ New event
                     <span id="item">{{sale['item']}}</span>
                 </div>
                 
-                <input type ="number" id="quantity" class="fit-box col-1" min=0 step=1 placeholder="quantity" value="{{sale["quantity"]}}">
+                <input type ="number" id="quantity" class="fit-box col-1" min=0 step=1 placeholder="quantity" style="background-color: burlywood;" value="{{sale["quantity"]}}">
                 <span class="col-1">amount paid: $</span>
                 <span class="col-1" id="amtPaid">{{sale["revenue"]}}</span>
                 <div id="dealsApplied" style="height: 100px;" class="scroll-box col-1">
                     <h6>Deals applied</h6>
                 </div>
-                <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid">
+                <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid" style="background-color:rgba(250, 235, 215, 0.838);">
                 <span class="col-1">date: </span>
                 <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">{{sale["sale_time"]}}</span>
                 <div class="col-1">
                     <label for="paymentMethod">Cash/Tap</label>
-                    <select id="paymentMethod">
+                    <select id="paymentMethod" style="background-color: burlywood;">
                         <option value="cash" {% if sale.payment_method == 'cash' %}selected{% endif %}>Cash</option>
                         <option value="tap" {% if sale.payment_method == 'tap' %}selected{% endif %}>Tap</option>
                     </select>

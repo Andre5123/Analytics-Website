@@ -11,11 +11,9 @@ from email.mime.multipart import MIMEMultipart
 import secrets
 
 from werkzeug.security import check_password_hash, generate_password_hash
-import resend
 
 import os
 
-resend.api_key = os.environ.get("RESEND_API_KEY")
 
 def toSQLDATETIME(date): #JSON file
     try:
@@ -70,22 +68,6 @@ def login_required(f):
     return decorated_function
 
 
-
-def send_email(to_email, subject, body):
-    r = resend.Emails.send({
-      "from": "onboarding@resend.dev",
-      "to": to_email,
-      "subject": subject,
-      "html": "<p>"+body+"</p>"
-    })
-
-def send_verification_code(recipient):
-    code = f"{secrets.randbelow(1_000_000):06d}"
-    text = "Here is the verification code: "+code+".Put this in the bake-sale analytics website to verify your identity. "
-    send_email(recipient, "Your verification code", text)
-    return code
-
-
 # Supabase database helper functions
 # ---------------------------------------------------
 
@@ -129,7 +111,7 @@ def createUser(username, password):
     user_info = supabase.table("users") \
         .insert({"username": username, "password_hash":generate_password_hash(password)}) \
         .execute().data
-    return True, {"success":True, "id":user_info}
+    return True, {"success":True, "id":user_info[0]["id"]}
     
 
 

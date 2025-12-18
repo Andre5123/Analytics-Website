@@ -16,7 +16,7 @@
 </head>
 <body>
     <header>
-        <h1>Welcome to the bake sale analytics website{% if session.get("email") %}, {{session.get("email")}}{% endif %}</h1>
+        <h1>Welcome to the bake sale analytics website{% if session.get("username") %}, {{session.get("username")}}{% endif %}</h1>
         <h2>Current page: {{self.title()}}</h2>
     </header>
 

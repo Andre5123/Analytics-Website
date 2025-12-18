@@ -2,7 +2,7 @@ from flask import Flask, redirect, render_template, request, session, jsonify
 from flask_session import Session
 from helpers import toSQLDATETIME, toJSStringDate, login_required, \
     startEvent, stopEvent, getEventStatus, addSale, updateSale, getPastEvents, getItems, \
-    updateItem, deleteItem, updateDeal, checkLogin, send_verification_code,createUser, getUserId
+    updateItem, deleteItem, updateDeal, checkLogin,createUser, getUserId
 from cs50 import SQL
 from datetime import datetime
 from supabase import create_client
@@ -183,6 +183,7 @@ def register():
         session["username"] = username
         success, newUser = createUser(session["username"], password)
         session["user_id"] = newUser["id"]
+        print("THE USER ID IS: ", newUser["id"])
         return redirect("/")
 
 @app.route("/login", methods=["GET", "POST"])
