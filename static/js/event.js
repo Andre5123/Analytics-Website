@@ -6,6 +6,7 @@ const salesContainer = document.querySelector("#sales")
 const items = window.items
 
 const itemOptions = document.querySelector("#itemOptions")
+const errorText = document.querySelector("#errorMessage")
 
 
 // Create new sale
@@ -134,6 +135,7 @@ function updateSale(sale) {
         }
         else {
             console.log("Error, sale did not successfully save", data)
+            errorText.textContent = "Error: "+data.error;
         }
     })
     .catch(error => console.error("Error:", error));
