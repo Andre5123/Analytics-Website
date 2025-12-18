@@ -6,7 +6,7 @@ Register
 {% block body %}
 <h3>{{error}}</h3>
 <form action="/register" method="post">
-    <p>{{email}}</p>
+    <input type="text" autocomplete="off"name="username" placeholder="Create a username" autofocus>
     <input type="text" autocomplete="off"name="password" placeholder="Create a password" autofocus>
     <input type="text" autocomplete="off" name="confirmPassword" placeholder="Repeat the password" autofocus>
 

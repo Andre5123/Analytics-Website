@@ -5,17 +5,24 @@ const salesContainer = document.querySelector("#sales")
 
 const items = window.items
 
-// Create new sale
-newSaleButton.addEventListener("click", ()=>{
+const itemOptions = document.querySelector("#itemOptions")
 
-    // Create new sale
-    newSale = saleTemplate.cloneNode(true);
-    newSale.classList.remove("d-none");
-    newSale.classList.add("d-flex");
-    newSale.id = '';
-    const date = new Date();
-    newSale.querySelector("#date").textContent = date.toString();
-    salesContainer.insertBefore(newSale,salesContainer.firstElementChild);
+
+// Create new sale
+itemOptions.addEventListener("click", (event)=>{
+    item = event.target
+
+    if (item.id.includes("Item")) {
+        // Create new sale
+        newSale = saleTemplate.cloneNode(true);
+        newSale.querySelector("#item").textContent = item.textContent
+        newSale.classList.remove("d-none");
+        newSale.classList.add("d-flex");
+        newSale.id = '';
+        const date = new Date();
+        newSale.querySelector("#date").textContent = date.toString();
+        salesContainer.insertBefore(newSale,salesContainer.firstElementChild);
+    }
 })
 
 // This function calculates the cheapest price for the sale of a quantity of an item, based on the best combination of that item's deals.
@@ -71,7 +78,7 @@ salesContainer.addEventListener("input", (event)=>{
 
         let amtPaid = sale.querySelector("#amtPaid");
         let customAmtPaid = sale.querySelector("#customAmtPaid");
-        let itemName = sale.querySelector("#item").value;
+        let itemName = sale.querySelector("#item").textContent;
         let quantity = sale.querySelector("#quantity").value;
         price = calculatePrice(itemName, quantity);
         amtPaid.textContent = (customAmtPaid.value == "")? (price["price"]).toFixed(2): customAmtPaid.value;
@@ -79,13 +86,14 @@ salesContainer.addEventListener("input", (event)=>{
          let dealsApplied = price["dealsApplied"]
         let dealsAppliedCont = sale.querySelector("#dealsApplied")
         //Erase any previous deals to reapply them
-        dealsAppliedCont.innerHTML = "<h3>Deals applied:</h3>";
+        dealsAppliedCont.innerHTML = "<h6>Deals applied:</h6>";
         if (customAmtPaid.value == "") {
 
             for (let i = 0; i<dealsApplied.length; i++) {
                 let p = document.createElement("p");
                 timesApplied = dealsApplied[i]["quantityCovered"] / dealsApplied[i]["dealQuantity"]
-                p.textContent = "("+dealsApplied[i]["dealQuantity"] + " for " + dealsApplied[i]["dealPrice"]+") x " + timesApplied;
+                p.textContent = "("+dealsApplied[i]["dealQuantity"].toFixed(2) + " for " + dealsApplied[i]["dealPrice"]+") x " + timesApplied.toFixed(2);
+                p.style.fontSize = 8;
                 dealsAppliedCont.append(p);
             }
         }
@@ -94,7 +102,7 @@ salesContainer.addEventListener("input", (event)=>{
 // Updates the server that a new sale has been added or an existing one was modified
 function updateSale(sale) {
     const id = sale.id || null;
-    const item = sale.querySelector("#item").value;
+    const item = sale.querySelector("#item").textContent;
     const quantity = Number(sale.querySelector("#quantity").value);
     const amtPaid = Number(sale.querySelector("#amtPaid").textContent);
     const date = new Date(sale.querySelector("#date").textContent);

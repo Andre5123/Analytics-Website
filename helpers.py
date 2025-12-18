@@ -60,26 +60,13 @@ def login_required(f):
         elif not loginEnabled and session.get("user_id") is None:
             session["user_id"] = "Insert ID"
 
-        if session.get("user_id") is None or session.get("email") is None:
+        if session.get("user_id") is None: #or session.get("username") is None:
             return redirect("/login")
         return f(*args, **kwargs)
 
     return decorated_function
 
-def email_verification_required(f):
-    """
-    Decorate routes to require email verification.
 
-    https://flask.palletsprojects.com/en/latest/patterns/viewdecorators/
-    """
-
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if session.get("email") is None or session.get("email") == False:
-            return redirect("/verify")
-        return f(*args, **kwargs)
-
-    return decorated_function
 
 def send_email(to_email, subject, body):
     sender_email = "polarpenguin878@gmail.com"
@@ -110,43 +97,43 @@ def send_verification_code(recipient):
 
 # Login
 
-def checkLogin(email, password):
-    # TODO: username and email validation
+def checkLogin(username, password):
+    # TODO: username validation
     
     user_info = supabase.table("users") \
-        .select("id, password") \
-        .eq("email", email) \
+        .select("id, password_hash") \
+        .eq("username", username) \
         .execute().data
     
     if user_info != []:
-        if check_password_hash(user_info[0]["password"], password):
+        if check_password_hash(user_info[0]["password_hash"], password):
             session["user_id"] = user_info[0]["id"]
-            session["email"] = email
+            session["username"] = username
             return True, {"success":True}
         else:
-            return False, {"success":False, "error":"Incorrect password / email"}
+            return False, {"success":False, "error":"Incorrect password / username"}
     else:
-        return False, {"success":False, "error":"Incorrect password / email"}
+        return False, {"success":False, "error":"Incorrect password / username"}
 
 # Create new user:
 
-def getUserId(email):
+def getUserId(username):
     id = supabase.table("users") \
         .select("id") \
-        .eq("email", email) \
+        .eq("username", username) \
         .execute().data
     if id != []:
         return id
     return None
 
-def createUser(email, password):
-    # TODO: username and email validation
+def createUser(username, password):
+    # TODO: username validation
     
-    if getUserId(email):
-        return False, {"success":False, "error":"There is already a user associated with this email"}
+    if getUserId(username):
+        return False, {"success":False, "error":"There is already a user associated with this username"}
 
     user_info = supabase.table("users") \
-        .insert({"email": email, "password":generate_password_hash(password)}) \
+        .insert({"username": username, "password_hash":generate_password_hash(password)}) \
         .execute().data
     return True, {"success":True, "id":user_info}
     

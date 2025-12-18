@@ -1,6 +1,6 @@
 from flask import Flask, redirect, render_template, request, session, jsonify
 from flask_session import Session
-from helpers import toSQLDATETIME, toJSStringDate, login_required, email_verification_required, \
+from helpers import toSQLDATETIME, toJSStringDate, login_required, \
     startEvent, stopEvent, getEventStatus, addSale, updateSale, getPastEvents, getItems, \
     updateItem, deleteItem, updateDeal, checkLogin, send_verification_code,createUser, getUserId
 from cs50 import SQL
@@ -166,22 +166,25 @@ def verify():
 
 
 @app.route("/register", methods=["GET", "POST"])
-@email_verification_required
 def register():
     if request.method == "GET":
-        return render_template("register.html", code_sent=False, email = session["email"])
+        return render_template("register.html")
     if request.method == "POST":
+        username = request.form.get("username")
         password = request.form.get("password")
         confirmation = request.form.get("confirmPassword")
 
+        if getUserId(username):
+            return render_template("register.html", error="Username already in use.")
         if password == None or password == "":
-            return render_template("register.html", code_sent=False, email = session["email"], error="Please enter a password.")
+            return render_template("register.html", error="Please enter a password.")
         
         if password != confirmation:
-            return render_template("register.html", code_sent=False, email = session["email"], error="Passwords do not match each other.")
+            return render_template("register.html", error="Passwords do not match each other.")
         
-        newUserId = createUser(session["email"], password)
-        session["user_id"] = newUserId
+        session["username"] = username
+        success, newUser = createUser(session["username"], password)
+        session["user_id"] = newUser["id"]
         return redirect("/")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -190,10 +193,10 @@ def login():
     if request.method == "GET":
         return render_template("login.html")
     elif request.method == "POST":
-        email = request.form.get("email")
+        username = request.form.get("username")
         password = request.form.get("password")
         
-        loginSuccessful, content = checkLogin(email, password)
+        loginSuccessful, content = checkLogin(username, password)
         if loginSuccessful:
             print("login successful, so it should work now right?")
             return redirect("/")

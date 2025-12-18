@@ -50,7 +50,7 @@ newItemButton.addEventListener("click", ()=>{
         "quantity": quantity,
         "cost": cost
     }
-    window.items.push({"name":name, "quantity":quantity, "cost":cost})
+    window.items.push({"name":name, "quantity":quantity, "cost":cost, "unit_cost":cost/quantity})
     // Update the server that a new item has been added
     fetch("/new-item",{
             method: "POST",
@@ -98,6 +98,9 @@ function deleteItem(item) {
         }
     })
     .catch(error => console.error("Error:", error));
+
+    // Delete the item's entry in this script
+    window.items = window.items.filter(item => item.name != itemName)
 }
 
 // Delete an item

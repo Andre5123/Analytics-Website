@@ -5,3 +5,40 @@
 .saved {
     background-color: #88ff88;
 }
+
+/* Flex container */
+.d-flex {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Shared box style */
+.fit-box {
+  width: var(--box-width, 120px);    /* default width */
+  height: var(--box-height, 60px);   /* default height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: clamp(0.7rem, 1rem, 1.2rem); /* scales text */
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  line-height: 1.1;
+  border: 1px solid #ccc;
+  padding: 2px;
+  box-sizing: border-box;
+}
+
+/* Textareas adjustments */
+textarea.fit-box {
+  resize: none;       /* prevent manual resizing */
+  border: none;
+  background: transparent;
+  outline: none;
+}
+
+.scroll-box {
+    overflow-y: auto;
+    border: 1px solid #000000;
+}
