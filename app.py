@@ -12,9 +12,7 @@ from email.mime.multipart import MIMEMultipart
 from validator import validator
 
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 
 from supabase_client import supabase
 
