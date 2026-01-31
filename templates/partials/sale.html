@@ -1,0 +1,22 @@
+
+<div id="{{sale.id}}" class="d-flex sale">
+    <form class="row cell align-items-center" style="width: 100%;">
+        <div class="col-1">
+            <label for="item">Item</label>
+            <span id="item">{{sale.item_name}}</span>
+        </div>
+        <label for="quantity">Quantity</label>
+        <input type="number" id="quantity" min="1" step="1" class="fit-box col-1" value="{{sale.quantity}}" inputmode="none">
+        <span class="col-1">amount paid: $</span>
+        <span class="col-1" id="amtPaid">{{sale.revenue}}</span>
+        
+        <div id="dealsApplied" style="height: 100px; display: none;" class="scroll-box col-1">
+            <h6>Deals applied</h6>
+        </div>
+        <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid" style="background-color:rgba(250, 235, 215, 0.838);">
+        <label  for="date" class="col-1">date: </label>
+        <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">{{sale.sale_time}}</span>
+        <input type="hidden" id="payment_method" value="{{sale.payment_method}}">
+        <button class="col-1" id="update">Delete</button>
+    </form>
+</div>

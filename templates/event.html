@@ -4,74 +4,53 @@
 New event
 {% endblock %}
 {% block body %}
+
 <script>
-    window.items = {{items | tojson}}
+    window.items = {{items | tojson}};
+    const prevCashSales = {{cashSales | tojson}};
+    const prevTapSales = {{tapSales | tojson}};
 </script>
 <link rel="stylesheet" href="static/css/event.css">
 <h3 id="newSale">New Sale</h3>
-<div id="itemOptions">
-    {% for item in items %}
-        <button id="{{item['name']}}Item">{{item['name']}}</button>
-    {% endfor %}
-</div>
 <h3 id ="errorMessage"></h3>
-<div id="sales" class="container">
-    <div id="sale_template" class="d-none sale">
+<div id="sales" class="sales-container" style="max-width: none !important; width: 100% !important;">        
+    <div id="sale_template" class="d-none sale" >
         <form class="row cell align-items-center" style="width: 100%;">
-            <div class="col-1">
-                <label for="item">Item</label>
-                <span id="item"></span>
+            <div id="#itemList">
+                
             </div>
-            
-            <input type ="number" id="quantity" class="fit-box col-1" min=0 step=1 placeholder="quantity" style="background-color:burlywood;">
-            <span class="col-1">amount paid: $</span>
-            <span class="col-1" id="amtPaid">0</span>
-            <div id="dealsApplied" style="height: 100px;" class="scroll-box col-1">
-                <h6>Deals applied</h6>
-            </div>
+            <span class="col-1" id="amtPaid">revenue: $0</span>
             <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid" style="background-color:rgba(250, 235, 215, 0.838);">
-            <span class="col-1">date: </span>
-            <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">December</span>
-            <div class="col-1">
-                <label for="paymentMethod">Cash/Tap</label>
-                <select id="paymentMethod" style="background-color: burlywood;">
-                    <option value="cash">Cash</option>
-                    <option value="tap">Tap</option>
-                </select>
-            </div>
-            <button class="col-1" id="update">Update</button>
+            <label  for="date" class="col-1">date: </label>
+            <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">Sale time</span>
+            <input type="hidden" id="payment_method" value="cash">
         </form>
     </div>
-
-    {% for sale in eventSales %}
-
-        <div id="{{sale['id']}}" class="d-flex sale">
-            <form class="row cell align-items-center" style="width: 100%;">
-                <div class="col-1">
-                    <label for="item">Item</label>
-                    <span id="item">{{sale['item']}}</span>
-                </div>
-                
-                <input type ="number" id="quantity" class="fit-box col-1" min=0 step=1 placeholder="quantity" style="background-color: burlywood;" value="{{sale["quantity"]}}">
-                <span class="col-1">amount paid: $</span>
-                <span class="col-1" id="amtPaid">{{sale["revenue"]}}</span>
-                <div id="dealsApplied" style="height: 100px;" class="scroll-box col-1">
-                    <h6>Deals applied</h6>
-                </div>
-                <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid" style="background-color:rgba(250, 235, 215, 0.838);">
-                <span class="col-1">date: </span>
-                <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">{{sale["sale_time"]}}</span>
-                <div class="col-1">
-                    <label for="paymentMethod">Cash/Tap</label>
-                    <select id="paymentMethod" style="background-color: burlywood;">
-                        <option value="cash" {% if sale.payment_method == 'cash' %}selected{% endif %}>Cash</option>
-                        <option value="tap" {% if sale.payment_method == 'tap' %}selected{% endif %}>Tap</option>
-                    </select>
-                </div>
-                <button class="col-1" id="update">Update</button>
-            </form>
+    <div id="cash-container" class="sales-column">
+        <h1>Cash</h1>
+        <div id="itemOptions">
+            {% for item in items %}
+                <button id="{{item['name']}}Item" class="item-option cash-option">{{item['name']}}</button>
+            {% endfor %}
+            <button id="cash-new-sale" style="background-color: orange;">New Sale</button>
         </div>
-    {% endfor %}
+        <div id="cash-sales">
+            
+        </div>
+        
+    </div>
+    <div id="tap-container" class="sales-column">
+        <h1>Tap</h1>
+        <div id="itemOptions">
+            {% for item in items %}
+                <button id="{{item['name']}}Item" class="item-option tap-option">{{item['name']}}</button>
+            {% endfor %}
+            <button id="tap-new-sale" style="background-color: orange;">New Sale</button>
+        </div>
+        <div id="tap-sales">
+        </div>
+    </div>
+    
 </div>
 
 <p></p>

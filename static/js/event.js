@@ -1,182 +1,364 @@
-const newSaleButton = document.querySelector("#newSale")
-const saleTemplate = document.querySelector("#sale_template")
+const EventPage = (() => {
+    const items = window.items || [];
+    const cashContainer = document.querySelector("#cash-sales");
+    const tapContainer = document.querySelector("#tap-sales");
+    const itemOptions = document.querySelectorAll(".item-option");
+    const cashNewSaleBtn = document.querySelector("#cash-new-sale");
+    const tapNewSaleBtn = document.querySelector("#tap-new-sale");
+    const errorText = document.querySelector("#errorMessage");
 
-const salesContainer = document.querySelector("#sales")
+    let cashSaleStack = [];
+    let tapSaleStack = [];
+    let currentCashSale = null;
+    let currentTapSale = null;
 
-const items = window.items
+    // --- Sale Creation ---
+    function createSale(paymentMethod, insertBefore = null) {
+        const sale = { id: null, items: {}, customRevenue: null, paymentMethod };
 
-const itemOptions = document.querySelector("#itemOptions")
-const errorText = document.querySelector("#errorMessage")
+        const saleEl = document.createElement("div");
+        saleEl.classList.add("sale-panel", "d-flex");
+        saleEl.dataset.saleId = "";
 
+        // Header
+        const header = document.createElement("div");
+        header.classList.add("sale-header");
 
-// Create new sale
-itemOptions.addEventListener("click", (event)=>{
-    item = event.target
+        const checkboxLabel = document.createElement("label");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.classList.add("customRevenueToggle");
+        checkboxLabel.appendChild(checkbox);
+        checkboxLabel.appendChild(document.createTextNode(" Custom Revenue"));
 
-    if (item.id.includes("Item")) {
-        // Create new sale
-        newSale = saleTemplate.cloneNode(true);
-        newSale.querySelector("#item").textContent = item.textContent
-        newSale.classList.remove("d-none");
-        newSale.classList.add("d-flex");
-        newSale.id = '';
-        const date = new Date();
-        newSale.querySelector("#date").textContent = date.toString();
-        salesContainer.insertBefore(newSale,salesContainer.firstElementChild);
+        const customInput = document.createElement("input");
+        customInput.type = "number";
+        customInput.classList.add("customRevenueInput", "d-none");
+        customInput.placeholder = "Custom revenue";
+
+        const totalSpan = document.createElement("span");
+        totalSpan.classList.add("sale-total");
+        totalSpan.textContent = "Total: $0.00";
+
+        header.appendChild(checkboxLabel);
+        header.appendChild(customInput);
+        header.appendChild(totalSpan);
+        saleEl.appendChild(header);
+
+        // Items container
+        const itemsList = document.createElement("div");
+        itemsList.classList.add("sale-items-list");
+        saleEl.appendChild(itemsList);
+
+        const container = paymentMethod === "tap" ? tapContainer : cashContainer;
+        container.insertBefore(saleEl, insertBefore || container.firstElementChild);
+
+        const currentSale = { ...sale, element: saleEl };
+
+        if (paymentMethod === "tap") {
+            currentTapSale = currentSale;
+            tapSaleStack.push(currentTapSale);
+        } else {
+            currentCashSale = currentSale;
+            cashSaleStack.push(currentCashSale);
+        }
+
+        setupHeaderEvents(currentSale);
+        return currentSale;
     }
-})
 
-// This function calculates the cheapest price for the sale of a quantity of an item, based on the best combination of that item's deals.
-function calculatePrice(itemName, quantity) {
-    deals = window.items.find(item => item.name === itemName).deals;
+    function setupHeaderEvents(sale) {
+        const checkbox = sale.element.querySelector(".customRevenueToggle");
+        const customInput = sale.element.querySelector(".customRevenueInput");
 
-    if (deals.length == 0){
-        console.log("error, this item has no deals");
-        return {"price": 0, "dealsApplied": []};
-    }
-    price = 0;
-    // Get the cost per unit for every deal
-    for (let i =0; i < deals.length; i++) {
-        // Deal does not apply since the deal's quantity is larger than the sale's.
-        deals[i]["revenuePerItem"] = deals[i]["revenue"]/ deals[i]["quantity"]
-    }
-
-    // To keep tabs on all of the deals that are used
-    dealsApplied = []
-    // Account for the entire quantity with the best deals
-    while (quantity > 0) {
-        let cheapestDealIndex = 0;
-        for (let i=1; i<deals.length; i++) {
-            // Find the cheapest deal that is within the quantity range
-            if (deals[i]["revenuePerItem"] < deals[cheapestDealIndex]["revenuePerItem"] && deals[i]["quantity"] <= quantity) {
-                cheapestDealIndex = i;
-
+        checkbox.addEventListener("change", () => {
+            if (checkbox.checked) {
+                customInput.classList.remove("d-none");
+                sale.customRevenue = parseFloat(customInput.value) || 0;
+            } else {
+                customInput.classList.add("d-none");
+                sale.customRevenue = null;
             }
-        }
-        let cheapestDeal = deals[cheapestDealIndex];
-        console.log("the cheapest deal is ", cheapestDeal);
-        let quantityCovered = quantity - quantity % cheapestDeal["quantity"];
+            recalcSale(sale);
+            saveSale(sale);
+        });
 
-        // Special case where there is no deal with a quantity smaller than or equal to the sale's quantity, should not happen.
-        if (cheapestDeal["quantity"] > quantity) {
-            quantityCovered = quantity;
-        }
-        price += quantityCovered * cheapestDeal["revenuePerItem"];
-        quantity -= quantityCovered;
-        dealsApplied.push({"dealQuantity": cheapestDeal["quantity"], "dealPrice": cheapestDeal["revenue"], "quantityCovered":quantityCovered})
+        customInput.addEventListener("input", () => {
+            sale.customRevenue = parseFloat(customInput.value) || null;
+            recalcSale(sale);
+            saveSale(sale);
+        });
     }
-    return {"price": price, "dealsApplied": dealsApplied};
-}
 
-// Visual feedback to show that the sale has unsaved changes
-salesContainer.addEventListener("input", (event)=>{
-    console.log("new input");
-    sale = event.target.closest(".sale")
-    if (sale) {
-        updateButton = sale.querySelector("#update")
-        updateButton.classList.remove("saved");
-        updateButton.classList.add("unsaved");
+    // --- Divider Logic ---
+    function handleNewSaleButton(paymentMethod) {
+        const container = paymentMethod === "tap" ? tapContainer : cashContainer;
+        if (!container.querySelector(".sale-divider")) {
+            const hr = document.createElement("hr");
+            hr.classList.add("sale-divider");
+            container.insertBefore(hr, container.firstElementChild);
+        }
+    }
 
-        let amtPaid = sale.querySelector("#amtPaid");
-        let customAmtPaid = sale.querySelector("#customAmtPaid");
-        let itemName = sale.querySelector("#item").textContent;
-        let quantity = sale.querySelector("#quantity").value;
-        price = calculatePrice(itemName, quantity);
-        amtPaid.textContent = (customAmtPaid.value == "")? (price["price"]).toFixed(2): customAmtPaid.value;
+    // --- Add/Update Item ---
+    function addItemToSale(itemName, paymentMethod) {
+        const container = paymentMethod === "tap" ? tapContainer : cashContainer;
+        const topDivider = container.querySelector(".sale-divider");
 
-         let dealsApplied = price["dealsApplied"]
-        let dealsAppliedCont = sale.querySelector("#dealsApplied")
-        //Erase any previous deals to reapply them
-        dealsAppliedCont.innerHTML = "<h6>Deals applied:</h6>";
-        if (customAmtPaid.value == "") {
+        let currentSale = paymentMethod === "tap" ? currentTapSale : currentCashSale;
 
-            for (let i = 0; i<dealsApplied.length; i++) {
-                let p = document.createElement("p");
-                timesApplied = dealsApplied[i]["quantityCovered"] / dealsApplied[i]["dealQuantity"]
-                p.textContent = "("+dealsApplied[i]["dealQuantity"].toFixed(2) + " for " + dealsApplied[i]["dealPrice"]+") x " + timesApplied.toFixed(2);
-                p.style.fontSize = 8;
-                dealsAppliedCont.append(p);
+        // Create a new sale if no current sale or there's a divider at the top
+        if (!currentSale || (topDivider && container.firstElementChild !== currentSale.element)) {
+            currentSale = createSale(paymentMethod, topDivider || null);
+        }
+
+        if (!currentSale.items[itemName]) {
+            currentSale.items[itemName] = { quantity: 1, revenue: 0, dealsApplied: [] };
+            createItemElement(currentSale, itemName);
+        } else {
+            currentSale.items[itemName].quantity++;
+            const inputEl = currentSale.element.querySelector(`.sale-item[data-item="${itemName}"] .item-quantity`);
+            inputEl.value = currentSale.items[itemName].quantity;
+        }
+
+        recalcSale(currentSale);
+        saveSale(currentSale);
+
+        if (paymentMethod === "tap") currentTapSale = currentSale;
+        else currentCashSale = currentSale;
+    }
+
+    // --- Create Item Element ---
+    function createItemElement(sale, itemName) {
+        const itemsList = sale.element.querySelector(".sale-items-list");
+
+        const itemDiv = document.createElement("div");
+        itemDiv.classList.add("sale-item");
+        itemDiv.dataset.item = itemName;
+
+        const nameSpan = document.createElement("span");
+        nameSpan.classList.add("item-name");
+        nameSpan.textContent = itemName;
+
+        const quantityInput = document.createElement("input");
+        quantityInput.type = "number";
+        quantityInput.classList.add("item-quantity");
+        quantityInput.value = 1;
+        quantityInput.min = 0; // prevent past sales from dropping below 1
+
+        const costSpan = document.createElement("span");
+        costSpan.classList.add("item-cost");
+        costSpan.textContent = "Cost: $0.00";
+
+        const revenueSpan = document.createElement("span");
+        revenueSpan.classList.add("item-revenue");
+        revenueSpan.textContent = "Revenue: $0.00";
+
+        quantityInput.addEventListener("input", () => {
+            let val = parseInt(quantityInput.value);
+            if (Number.isNaN(val)) val = 0;
+
+            const isCurrentSale =
+                (sale.paymentMethod === "tap" && sale === currentTapSale) ||
+                (sale.paymentMethod === "cash" && sale === currentCashSale);
+
+            if (val <= 0) {
+                if (isCurrentSale) {
+                    // ✅ allowed: delete item
+                    delete sale.items[itemName];
+                    itemDiv.remove();
+
+                    if (Object.keys(sale.items).length === 0) {
+                        deleteSale(sale);
+                        return;
+                    }
+                } else {
+                    // ❌ past sale: clamp to 1
+                    quantityInput.value = 1;
+                    sale.items[itemName].quantity = 1;
+                }
+            } else {
+                sale.items[itemName].quantity = val;
             }
+
+            recalcSale(sale);
+            saveSale(sale);
+        });
+
+        itemDiv.appendChild(nameSpan);
+        itemDiv.appendChild(quantityInput);
+        itemDiv.appendChild(costSpan);
+        itemDiv.appendChild(revenueSpan);
+        itemsList.appendChild(itemDiv);
+    }
+
+    // --- Price Calculation ---
+    function calculatePrice(itemName, quantity) {
+        const deals = items.find(i => i.name === itemName)?.deals || [];
+        if (deals.length === 0) return { price: 0, dealsApplied: [] };
+
+        deals.forEach(d => d.revenuePerItem = d.revenue / d.quantity);
+
+        const dealsApplied = [];
+        let price = 0;
+
+        while (quantity > 0) {
+            let cheapest = deals.filter(d => d.quantity <= quantity)
+                                .sort((a, b) => a.revenuePerItem - b.revenuePerItem)[0] || deals[0];
+
+            let quantityCovered = Math.min(quantity, cheapest.quantity);
+            price += quantityCovered * cheapest.revenuePerItem;
+            quantity -= quantityCovered;
+
+            dealsApplied.push({ dealQuantity: cheapest.quantity, dealPrice: cheapest.revenue, quantityCovered });
+        }
+
+        return { price, dealsApplied };
+    }
+
+    // --- Recalculate Sale ---
+    function recalcSale(sale) {
+        let total = 0;
+
+        Object.entries(sale.items).forEach(([name, data]) => {
+            if (!sale.customRevenue) {
+                const priceObj = calculatePrice(name, data.quantity);
+                data.revenue = priceObj.price;
+                data.dealsApplied = priceObj.dealsApplied;
+
+                const itemDiv = sale.element.querySelector(`.sale-item[data-item="${name}"]`);
+                itemDiv.querySelector(".item-name").textContent = name;
+                itemDiv.querySelector(".item-cost").textContent = `Cost: $${(data.quantity * (items.find(i => i.name === name).unit_cost)).toFixed(2)}`;
+                itemDiv.querySelector(".item-revenue").textContent = `Revenue: $${data.revenue.toFixed(2)}`;
+
+                total += data.revenue;
+            }
+        });
+
+        if (sale.customRevenue) total = sale.customRevenue;
+        sale.element.querySelector(".sale-total").textContent = `Total: $${total.toFixed(2)}`;
+    }
+
+    // --- Delete Sale ---
+    function deleteSale(sale) {
+        sale.element.remove();
+
+        if (sale.id) {
+            fetch("/delete-sale", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: sale.id })
+            }).then(r => r.json())
+              .then(res => {
+                  if (!res.success) console.error("Failed to delete sale:", res.error);
+              })
+              .catch(e => console.error(e));
+        }
+
+        if (sale.paymentMethod === "tap") {
+            tapSaleStack = tapSaleStack.filter(s => s !== sale);
+            currentTapSale = tapSaleStack[tapSaleStack.length - 1] || null;
+        } else {
+            cashSaleStack = cashSaleStack.filter(s => s !== sale);
+            currentCashSale = cashSaleStack[cashSaleStack.length - 1] || null;
         }
     }
-})
-// Updates the server that a new sale has been added or an existing one was modified
-function updateSale(sale) {
-    const id = sale.id || null;
-    const item = sale.querySelector("#item").textContent;
-    const quantity = Number(sale.querySelector("#quantity").value);
-    const amtPaid = Number(sale.querySelector("#amtPaid").textContent);
-    const date = new Date(sale.querySelector("#date").textContent);
-    const paymentMethod = sale.querySelector("#paymentMethod").value;
 
-    data = {
-        "id":id,
-        "item":item,
-        "quantity":quantity,
-        "revenue":amtPaid,
-        "sale_time":date,
-        "payment_method":paymentMethod
-    }
+    // --- Save Sale ---
+    function saveSale(sale) {
+        const data = {
+            id: sale.id || null,
+            payment_method: sale.paymentMethod,
+            items: Object.entries(sale.items).map(([name, i]) => ({
+                item: name,
+                quantity: i.quantity,
+                revenue: i.revenue,
+                dealsApplied: i.dealsApplied
+            })),
+            customRevenue: sale.customRevenue,
+        };
 
-    fetch("/update-sale",{
+        if (!sale.id) {
+            data.sale_time = new Date();
+        }
+
+        fetch("/update-sale", {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify(data)
         })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            if (data.saleId) { // First time saving sale, it will be assigned an ID by the server
-                sale.id = data.saleId;
-            console.log("Sale id successfully created")
-
-            }
-            console.log("Sale successfully saved")
-        }
-        else {
-            console.log("Error, sale did not successfully save", data)
-            errorText.textContent = "Error: "+data.error;
-        }
-    })
-    .catch(error => console.error("Error:", error));
-}
-
-// Save the changes to the sale
-salesContainer.addEventListener("click", (event)=>{
-    event.preventDefault();
-    updateButton = event.target
-    sale = updateButton.closest(".sale")
-    if (updateButton.id == "update" && !(updateButton.classList.contains("saved"))) {
-        // Visual feedback
-        updateButton.classList.remove("unsaved");
-        updateButton.classList.add("saved");
-        updateSale(sale);
-    }
-})
-
-//To end the event
-const endEvent = document.querySelector("#endEvent")
-
-endEvent.addEventListener("click", ()=>{
-    CurrentEvent = false;
-    fetch("/event-status", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({"eventStatus": false})
-        })
-        .then(response => response.json())
-        .then(event => {
-            if (event.success == true){
-                if (CurrentEvent == false){
-                    window.location.href = "/";
+        .then(r => r.json())
+        .then(res => {
+            if (res.success) {
+                // If the server assigned a new sale id, store it
+                if (res.saleId) {
+                    sale.id = res.saleId;
+                    sale.element.dataset.saleId = res.saleId; // optional: keep HTML synced
                 }
-            }
-            else {
-                console.log("An error occurred trying to update the server");
+            } else {
+                errorText.textContent = "Error: " + (res.error || "Unknown error");
             }
         })
-        .catch(error => console.log(error));
-})
+        .catch(e => console.error(e));
+    }
+
+
+    // --- Event Listeners ---
+    itemOptions.forEach(btn => {
+        btn.addEventListener("click", () => {
+            const method = btn.classList.contains("tap-option") ? "tap" : "cash";
+            addItemToSale(btn.textContent, method);
+        });
+    });
+
+    cashNewSaleBtn.addEventListener("click", () => handleNewSaleButton("cash"));
+    tapNewSaleBtn.addEventListener("click", () => handleNewSaleButton("tap"));
+
+    function hydratePreviousSales(prevSales, paymentMethod) {
+        if (!Array.isArray(prevSales) || prevSales.length === 0) return;
+
+        // Oldest first so newest ends up as "current"
+        prevSales.slice().reverse().forEach((saleData, index) => {
+            const sale = createSale(paymentMethod);
+            sale.id = saleData.id;
+            sale.element.dataset.saleId = saleData.id;
+            sale.paymentMethod = paymentMethod;
+
+            // Hydrate items
+            saleData.items.forEach(i => {
+                sale.items[i.item] = {
+                    quantity: i.quantity,
+                    revenue: i.revenue,
+                    dealsApplied: [] // we don't need historical deal reconstruction
+                };
+
+                createItemElement(sale, i.item);
+
+                const itemEl = sale.element.querySelector(
+                    `.sale-item[data-item="${i.item}"]`
+                );
+                itemEl.querySelector(".item-quantity").value = i.quantity;
+            });
+
+            // Respect stored totals (don’t auto-recalc yet)
+            sale.element.querySelector(".sale-total").textContent =
+                `Total: $${saleData.total_revenue.toFixed(2)}`;
+
+            // Track stacks + current sale
+            if (paymentMethod === "tap") {
+                tapSaleStack.push(sale);
+                currentTapSale = sale; // last one wins
+            } else {
+                cashSaleStack.push(sale);
+                currentCashSale = sale;
+            }
+        });
+    }
+
+
+    hydratePreviousSales(prevCashSales, "cash");
+    hydratePreviousSales(prevTapSales, "tap");
 
 
 
+})();

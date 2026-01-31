@@ -1,44 +1,44 @@
+(() => {
+    // Wrap in IIFE to avoid globals
+    const CurrentEvent = window.eventActive;
+    const eventButton = document.querySelector("#eventButton");
+    const eventCostField = document.querySelector("#eventCost");
+    const errorText = document.querySelector("#errorMessage");
 
-// When the page loads, the server passes a bool through Jinja for if an event is currently active
-let CurrentEvent = window.eventActive;
-
-const eventButton = document.querySelector("#eventButton");
-
-console.log(CurrentEvent, "event active?")
-
-
-
-eventButton.addEventListener("click", ()=>{
-    if (CurrentEvent == false) {
-        CurrentEvent = true;
-        console.log("current event status:", CurrentEvent);
+    function startEvent() {
+        const eventCost = Number(eventCostField.value) || 0;
         fetch("/event-status", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({"eventStatus": true})
+            body: JSON.stringify({ eventStatus: true, cost: eventCost })
         })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success == true){
-                if (CurrentEvent == true){
-                    eventButton.value = "Continue event";
-                    window.location.href = "/event";
-                }
-            }
-            else {
-                errorText = document.querySelector("#errorMessage");
-                errorText.innerHTML = data.error;
-
-                if (data.error === "Error: someone has already started an event") {
-                    eventButton.value = "Continue event";
-                }
-                console.log("An error occurred trying to update the server", data.error);
-            }
-        })
-        .catch(error => console.log(error));
+        .then(res => res.json())
+        .then(data => handleServerResponse(data))
+        .catch(err => console.error("Error starting event:", err));
     }
-    else {
-        window.location.href = "/event";
-    }
-})
 
+    function handleServerResponse(data) {
+        if (data.success) {
+            // Successfully started or continued
+            eventButton.value = "Continue event";
+            window.location.href = "/event";
+        } else {
+            // Display error message
+            errorText.textContent = data.error || "Unknown error";
+            
+            // Special case: someone else already started the event
+            if (data.error === "Error: someone has already started an event") {
+                eventButton.value = "Continue event";
+                eventCostField.style.display = "none";
+            }
+        }
+    }
+
+    eventButton.addEventListener("click", () => {
+        if (!CurrentEvent) {
+            startEvent();
+        } else {
+            window.location.href = "/event";
+        }
+    });
+})();

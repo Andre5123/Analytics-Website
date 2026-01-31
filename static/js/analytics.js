@@ -1,61 +1,77 @@
-eventsContainer = document.querySelector("#events")
-eventTemplate = document.querySelector("#eventTemplate")
+// Get references to the container and template
+const eventsContainer = document.querySelector("#events");
+const eventTemplate = document.querySelector("#eventTemplate");
 
+// Use window.events from server-side rendering
+const pastEvents = window.events;
 
-var pastEvents = window.events;
-
-
-for (let i in pastEvents) {
-    newEventDiv = eventTemplate.cloneNode(true);
-    newEventDiv.style.display = "";
-    newEventDiv.querySelector("h2").innerHTML = "Event: "+events[i]["start_date"]
-    eventsContainer.appendChild(newEventDiv, eventTemplate.nextSibling);
-
+// Utility function to calculate totals per item
+function processSales(sales) {
+    const items = {};
     let eventRevenue = 0;
     let eventCost = 0;
-    let eventProfit = 0;
-    let sales = events[i]["sales"];
-    
 
-    items = {}
-    for (i=0; i<sales.length; i++){
-        let item = sales[i]["item"];
-        if (!(items[item])) {
-            items[item] = {"totalCost": 0, "totalRevenue": 0, "unitsSold":0};
+    for (const sale of sales) {
+        const item = sale.item;
+        if (!items[item]) {
+            items[item] = { totalCost: 0, totalRevenue: 0, unitsSold: 0 };
         }
-        items[item]["unitsSold"] += sales[i]["quantity"];
-        items[item]["totalRevenue"] += sales[i]["revenue"];
-        items[item]["totalCost"] += sales[i]["cost"];
+        items[item].unitsSold += sale.quantity;
+        items[item].totalRevenue += sale.revenue;
+        items[item].totalCost += sale.cost;
     }
 
-    for (item in items) {
-        itemTag = document.createElement("h3");
-        itemTag.innerHTML = item;
-        newEventDiv.append(itemTag);
-
-        revenue = document.createElement("p");
-        revenue.innerHTML = "Total revenue from item: $"+items[item]["totalRevenue"];
-        newEventDiv.append(revenue);
-        eventRevenue += items[item]["totalRevenue"];
-
-        quantity = document.createElement("p");
-        quantity.innerHTML = "Total units sold: "+items[item]["unitsSold"];
-        newEventDiv.append(quantity);
-
-        cost = document.createElement("p");
-        cost.innerHTML = "Total cost from item: $"+ items[item]["totalCost"];
-        newEventDiv.append(cost);
-        eventCost += items[item]["totalCost"];
+    for (const item in items) {
+        eventRevenue += items[item].totalRevenue;
+        eventCost += items[item].totalCost;
     }
 
-    eventProfit = eventRevenue - eventCost;
-
-    // Display the event totals
-    const totalRevenueHeader = newEventDiv.querySelector("#totalRevenue")
-    const totalProfitHeader = newEventDiv.querySelector("#totalProfit")
-    const totalCostHeader = newEventDiv.querySelector("#totalCost")
-    totalRevenueHeader.textContent = "Total Revenue: $"+eventRevenue.toFixed(2);
-    totalProfitHeader.textContent = "Total Profit: $"+eventProfit.toFixed(2);
-    totalCostHeader.textContent = "Total Cost: $"+eventCost.toFixed(2);
+    const eventProfit = eventRevenue - eventCost;
+    return { items, eventRevenue, eventCost, eventProfit };
 }
 
+// Utility function to render a single event
+function renderEvent(eventData) {
+    const newEventDiv = eventTemplate.cloneNode(true);
+    newEventDiv.style.display = "";
+
+    // Event header
+    const startDate = eventData.start_date;
+    newEventDiv.querySelector("h2").textContent = `Event: ${startDate}`;
+
+    // Process sales
+    const { items, eventRevenue, eventCost, eventProfit } = processSales(eventData.sales);
+
+    // Render each item
+    for (const itemName in items) {
+        const itemData = items[itemName];
+
+        const itemHeader = document.createElement("h3");
+        itemHeader.textContent = itemName;
+        newEventDiv.appendChild(itemHeader);
+
+        const revenueEl = document.createElement("p");
+        revenueEl.textContent = `Total revenue from item: $${itemData.totalRevenue.toFixed(2)}`;
+        newEventDiv.appendChild(revenueEl);
+
+        const quantityEl = document.createElement("p");
+        quantityEl.textContent = `Total units sold: ${itemData.unitsSold}`;
+        newEventDiv.appendChild(quantityEl);
+
+        const costEl = document.createElement("p");
+        costEl.textContent = `Total cost from item: $${itemData.totalCost.toFixed(2)}`;
+        newEventDiv.appendChild(costEl);
+    }
+
+    // Render event totals
+    newEventDiv.querySelector("#totalRevenue").textContent = `Total Revenue: $${eventRevenue.toFixed(2)}`;
+    newEventDiv.querySelector("#totalProfit").textContent = `Total Profit: $${eventProfit.toFixed(2)}`;
+    newEventDiv.querySelector("#totalCost").textContent = `Total Cost: $${eventCost.toFixed(2)}`;
+
+    eventsContainer.appendChild(newEventDiv);
+}
+
+// Render all events
+for (const eventData of pastEvents) {
+    renderEvent(eventData);
+}

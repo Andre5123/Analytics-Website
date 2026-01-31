@@ -42,3 +42,18 @@ textarea.fit-box {
     overflow-y: auto;
     border: 1px solid #000000;
 }
+
+.sales-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* 50% / 50% */
+  height: 100vh; /* optional */
+}
+
+.sales-column {
+    padding: 1rem;
+    text-align: left;
+}
+
+#cash-sales {
+    border-right: 1px solid #ccc;
+}
