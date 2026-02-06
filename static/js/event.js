@@ -6,35 +6,157 @@ const salesContainer = document.querySelector("#sales")
 const items = window.items
 
 const itemOptions = document.querySelector("#itemOptions")
+const quantityOptions = document.querySelector("#quantityOptions")
+const customRevenueOption = document.querySelector("#customRevenueToggle")
+const customRevenueField = document.querySelector("#customRevField")
+
+const paymentMethodOptions = document.querySelector("#paymentMethodOptions")
+
 const errorText = document.querySelector("#errorMessage")
+
+let selectedItem = null
+let selectedPaymentMethod = null
+let selectedQuantity = null
+let customRevenue = null
 
 
 // Create new sale
-itemOptions.addEventListener("click", (event)=>{
-    item = event.target
+newSale.addEventListener("click", (event)=>{
 
-    if (item.id.includes("Item")) {
+    if (selectedItem != null && selectedPaymentMethod!=null && selectedQuantity!=null) {
         // Create new sale
-        newSale = saleTemplate.cloneNode(true);
-        newSale.querySelector("#item").textContent = item.textContent
+        let newSale = saleTemplate.cloneNode(true);
+        newSale.querySelector("#item").textContent = selectedItem;
+        newSale.querySelector("#quantity").value = selectedQuantity;
+        newSale.querySelector("#paymentMethod").value = selectedPaymentMethod;
+        if (customRevenue){
+
+            newSale.querySelector("#amtPaid").textContent = customRevenue;
+        }
+        else {
+            let price = calculatePrice(selectedItem, selectedQuantity);
+            newSale.querySelector("#amtPaid").textContent = price["price"];
+            let dealsApplied = price["dealsApplied"]
+            let dealsAppliedCont = newSale.querySelector("#dealsApplied")
+
+            for (let i = 0; i<dealsApplied.length; i++) {
+                let p = document.createElement("p");
+                timesApplied = dealsApplied[i]["quantityCovered"] / dealsApplied[i]["dealQuantity"]
+                p.textContent = "("+dealsApplied[i]["dealQuantity"].toFixed(2) + " for " + dealsApplied[i]["dealPrice"]+") x " + timesApplied.toFixed(2);
+                p.style.fontSize = 8;
+                dealsAppliedCont.append(p);
+            }
+        }
         newSale.classList.remove("d-none");
         newSale.classList.add("d-flex");
         newSale.id = '';
         const date = new Date();
         newSale.querySelector("#date").textContent = date.toString();
         salesContainer.insertBefore(newSale,salesContainer.firstElementChild);
+
+        selectedItem = null;
+        selectedQuantity = null;
+        selectedPaymentMethod = null;
+        customRevenue = null;
+
+        Array.from(quantityOptions.children).forEach(option => {
+            option.classList.remove("selected");
+        })
+
+        Array.from(itemOptions.children).forEach(option => {
+            option.classList.remove("selected");
+        })
+        Array.from(paymentMethodOptions.children).forEach(option => {
+            option.classList.remove("selected");
+        })
+
+        customRevenueOption.classList.remove("selected");
+
+        // Save the newly created sale
+        updateSale(salesContainer.firstElementChild);
     }
 })
 
+// Select an item
+quantityOptions.addEventListener("click", (event)=>{
+    let quantity = event.target;
+
+    
+    if (quantity.id.includes("Quantity")) {
+        // Create new sale
+        if (quantity.id === "customQuantity"){
+            customQuantity = quantityOptions.querySelector("#customQtyField").value;
+            selectedQuantity = customQuantity;
+        }
+        else {
+            selectedQuantity = parseInt(quantity.textContent);
+        }
+
+        // Add css for selecting the current option and remove from the other options
+        Array.from(quantityOptions.children).forEach(option => {
+            console.log("OK ", option);
+            option.classList.remove("selected")
+        })
+        quantity.classList.add("selected")
+    }
+})
+
+itemOptions.addEventListener("click", (event)=>{
+    let item = event.target;
+
+    if (item.id.includes("Item")) {
+        // Create new sale
+        selectedItem = item.textContent
+
+        // Add css for selecting the current option and remove from the other options
+        Array.from(itemOptions.children).forEach(option => {
+            option.classList.remove("selected")
+        })
+        item.classList.add("selected")
+
+    }
+
+    
+})
+
+customRevenueOption.addEventListener("click", (event)=>{
+    if (customRevenue === null) {
+        customRevenue = customRevenueField.value || 0;
+        customRevenueOption.classList.add("selected");
+    }
+    else {
+        customRevenueOption.classList.remove("selected");
+        customRevenue = null;
+    }
+})
+
+paymentMethodOptions.addEventListener("click", (event)=>{
+    let paymentMethod = event.target;
+
+    if (paymentMethod.id.includes("PaymentMethod")) {
+        // Create new sale
+        selectedPaymentMethod = paymentMethod.textContent.toLowerCase();
+
+        // Add css for selecting the current option and remove from the other options
+        Array.from(paymentMethodOptions.children).forEach(option => {
+            option.classList.remove("selected")
+        })
+        paymentMethod.classList.add("selected")
+    }
+
+    
+})
+
+
 // This function calculates the cheapest price for the sale of a quantity of an item, based on the best combination of that item's deals.
 function calculatePrice(itemName, quantity) {
-    deals = window.items.find(item => item.name === itemName).deals;
+    let deals = window.items.find(item => item.name === itemName).deals;
 
     if (deals.length == 0){
         console.log("error, this item has no deals");
         return {"price": 0, "dealsApplied": []};
     }
-    price = 0;
+    let price = 0;
     // Get the cost per unit for every deal
     for (let i =0; i < deals.length; i++) {
         // Deal does not apply since the deal's quantity is larger than the sale's.
@@ -42,7 +164,7 @@ function calculatePrice(itemName, quantity) {
     }
 
     // To keep tabs on all of the deals that are used
-    dealsApplied = []
+    let dealsApplied = []
     // Account for the entire quantity with the best deals
     while (quantity > 0) {
         let cheapestDealIndex = 0;
@@ -71,7 +193,7 @@ function calculatePrice(itemName, quantity) {
 // Visual feedback to show that the sale has unsaved changes
 salesContainer.addEventListener("input", (event)=>{
     console.log("new input");
-    sale = event.target.closest(".sale")
+    let sale = event.target.closest(".sale")
     if (sale) {
         updateButton = sale.querySelector("#update")
         updateButton.classList.remove("saved");
@@ -81,10 +203,10 @@ salesContainer.addEventListener("input", (event)=>{
         let customAmtPaid = sale.querySelector("#customAmtPaid");
         let itemName = sale.querySelector("#item").textContent;
         let quantity = sale.querySelector("#quantity").value;
-        price = calculatePrice(itemName, quantity);
+        let price = calculatePrice(itemName, quantity);
         amtPaid.textContent = (customAmtPaid.value == "")? (price["price"]).toFixed(2): customAmtPaid.value;
 
-         let dealsApplied = price["dealsApplied"]
+        let dealsApplied = price["dealsApplied"]
         let dealsAppliedCont = sale.querySelector("#dealsApplied")
         //Erase any previous deals to reapply them
         dealsAppliedCont.innerHTML = "<h6>Deals applied:</h6>";

@@ -4,74 +4,19 @@
 Inventory
 {% endblock %}
 {% block body %}
-<script> // To share the list of items with the client
-    window.items = {{items | tojson}}
-</script>
 <!--event.css has shared classes-->
 <link rel="stylesheet" href="static/css/event.css">
 <div>
-    <input type="text" id="newName" placeholder="Item name">
-    <input type="number" id="newQuantity" min=1 step=1 placeholder="quantity bought">
-    <input type="number" id="newCost" min=0 placeholder="cost for quantity">
-    <button id="newItem">New Item</button>
-    <p id="errorMessage"></p>
-    <div id="items">
-        <div id="itemTemplate" class="item" style="display: none">
-            <h1 id="itemName">Item</h1>
-            <h2>Deals</h2>
-            <button id="newDeal">New deal</button>
-            <button id="deleteItem">DeleteItem</button>
-            <div id="deals">
-                <form id="dealTemplate" class="d-none gap-2 deal">
-                    <label for="quantity">quantity:</label>
-                    <input type="number" min=1 id="quantity"step = 1 placeholder ="quantity" value="">
-                    <text id="cost">Cost: $0</text>
-                    <label for="revenue">revenue: </label>
-                    <input type="number" min=0 id ="revenue" placeholder ="revenue" value="">
-                    <text id="revenuePerItem">Revenue per item: $0.00</text>
-                    <text id="profitPerItem">Profit per item: $0.00</text>
-                    <text id="profitPerSale">Profit per sale: $0.00</text>
-                    <button id="update">Update</button>
-                </form>
-            </div>
-        </div>
-        {% for item in items %}
-            <div id="item{{item['name']}}" class="item">
-                <h1 id="itemName">{{item['name']}}</h1>
-                <h2>Deals</h2>
-                <button id="newDeal">New deal</button>
-                <button id="deleteItem">DeleteItem</button>
-
-                <div id="deals">
-                    <form id="dealTemplate" class="d-none gap-2 deal">
-                       <label for="quantity">quantity:</label>
-                        <input type="number" min=1 id="quantity"step = 1 placeholder ="quantity" value="">
-                        <text id="cost">Cost: $0</text>
-                        <label for="revenue">revenue: </label>
-                        <input type="number" min=0 id ="revenue" placeholder ="revenue" value="">
-                        <text id="revenuePerItem">Revenue per item: $0.00</text>
-                        <text id="profitPerItem">Profit per item: $0.00</text>
-                        <text id="profitPerSale">Profit per sale: $0.00</text>
-                        <button id="update">Update</button>
-                    </form>
-
-                    {% for deal in item["deals"] %}
-                        <form id="{{deal['id']}}" class="d-flex gap-2 deal">
-                            <label for="quantity">quantity:</label>
-                            <input type="number" min=1 id="quantity"step = 1 placeholder ="quantity" value="{{deal['quantity']}}">
-                            <text id="cost">Cost: {{"$%.2f"|format(item["unit_cost"] * deal['quantity'])}}</text>
-                            <label for="revenue">revenue:</label>
-                            <input type="number" min=0 id ="revenue" placeholder ="revenue" value="{{deal['revenue']}}">
-                            <text id="revenuePerItem">Revenue per item: {{ "$%.2f"|format(deal['revenue'] / deal['quantity'])}}</text>
-                            <text id="profitPerItem">Profit per item: {{ "$%.2f"|format(deal['revenue'] / deal['quantity'] - item["unit_cost"])}}</text>
-                            <text id="profitPerSale">Profit per sale: {{ "$%.2f"|format(deal['revenue'] - item["unit_cost"]*deal['quantity'])}}</text>
-                            <button id="update">Update</button>
-                        </form>
-                    {% endfor %}
-                </div>
-            </div>
-        {% endfor %}
+    <h3 id="errorMessage"></h3>
+    <h3>Menus</h3>
+    <div id="menus">
+    {% for menu in menus %}
+        <button id={{menu.id}}>{{menu.name}}</button>
+    {% endfor %}
     </div>
+    <h3>Add a menu</h3>
+    <input type="text" id="newMenu" placeholder="New menu name">
+    <button id="newMenuButton">Add New Menu</button>
 </div>
 
 <script src="static/js/inventory.js"></script>

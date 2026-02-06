@@ -6,6 +6,10 @@
     background-color: #88ff88;
 }
 
+.selected {
+  background-color: #88ff88;
+}
+
 /* Flex container */
 .d-flex {
   display: flex;

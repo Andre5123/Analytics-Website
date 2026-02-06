@@ -8,12 +8,34 @@ New event
     window.items = {{items | tojson}}
 </script>
 <link rel="stylesheet" href="static/css/event.css">
-<h3 id="newSale">New Sale</h3>
+<h3 id="newSaleHeader">New Sale</h3>
 <div id="itemOptions">
     {% for item in items %}
         <button id="{{item['name']}}Item">{{item['name']}}</button>
     {% endfor %}
 </div>
+
+<div id="quantityOptions">
+    <button id="1Quantity">1</button>
+    <button id="2Quantity">2</button>
+    <button id="3Quantity">3</button>
+    <button id="4Quantity">4</button>
+    <button id="5Quantity">5</button>
+    <input type="number" min="0" step="1" id="customQtyField" placeholder="Custom Quantity">
+    <button id="customQuantity" >Custom</button>
+</div>
+
+<div id="customRevenueOption">
+    <input type="number" min="0" step="0.01" id="customRevField" placeholder="Custom Revenue">
+    <button id="customRevenueToggle">Custom Revenue</button>        
+</div>
+
+<div id="paymentMethodOptions">
+    <button id="cashPaymentMethod">Cash</button>
+    <button id="tapPaymentMethod">Tap</button>        
+</div>
+
+<button id="newSale">New Sale</button>
 <h3 id ="errorMessage"></h3>
 <div id="sales" class="container">
     <div id="sale_template" class="d-none sale">
@@ -35,7 +57,7 @@ New event
             <div class="col-1">
                 <label for="paymentMethod">Cash/Tap</label>
                 <select id="paymentMethod" style="background-color: burlywood;">
-                    <option value="cash">Cash</option>
+                    <option value="cash" >Cash</option>
                     <option value="tap">Tap</option>
                 </select>
             </div>

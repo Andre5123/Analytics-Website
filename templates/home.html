@@ -10,8 +10,18 @@ Home
 <form>
     {% if eventActive %}
         <input type="button" id="eventButton" value="Continue event">
+        <input type="number" id="eventCost" min="0" step="0.01" value="0" placeholder="Cost of event" style="display: none;">
     {% else %}
         <input type="button" id="eventButton" value="Create new event">
+        <label for="eventCost">Event cost</label>
+        <input type="number" id="eventCost" min="0" step="0.01" value="0" placeholder="Cost of event" style="display: inline;">
+        <label for="selectMenu">Select Menu:</label>
+
+        <select id="selectMenu">
+            {% for menu in menus %}
+                <option value={{menu.id}}>{{menu.name}}</option>
+            {% endfor %}
+        </select>
     {% endif %}
     <h3 id="errorMessage"></h3>
 </form>

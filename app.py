@@ -1,20 +1,27 @@
-from flask import Flask, redirect, render_template, request, session, jsonify
+import logging
+
+logging.basicConfig(
+    level=logging.WARNING,
+    force=True
+)
+
+from flask import Flask, redirect, render_template, request, session, jsonify, url_for, g
 from flask_session import Session
 from helpers import toSQLDATETIME, toJSStringDate, login_required, \
-    startEvent, stopEvent, getEventStatus, addSale, updateSale, getPastEvents, getItems, \
-    updateItem, deleteItem, updateDeal, checkLogin,createUser, getUserId
+    startEvent, stopEvent, getEventStatus, addSale, updateSale, getPastEvents, getItems, getMenus, \
+    newMenu, updateItem, deleteItem, updateDeal, checkLogin,createUser, getUserId
 from cs50 import SQL
 from datetime import datetime
-from supabase import create_client
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from validator import validator
 
+
 import os
 
 
-from supabase_client import supabase
+from supabase_client import get_supabase
 
 
 
@@ -27,7 +34,12 @@ Session(app)
 
 currentSales = {}
 
-db = SQL("sqlite:///database.db")
+
+
+@app.before_request
+def inject_supabase():
+    g.supabase = get_supabase()
+
 
 # Client-to-Server APIs
 # ---------------------------------------------------------------
@@ -51,7 +63,16 @@ def getEvent():
         #Return values
         if newStatus == True:
             # Check if event has already started
-            success = startEvent()
+            eventCost = data.get("cost")
+            menuId = data.get("menu_id")
+            if not isinstance(eventCost, (int, float)):
+                 return jsonify({
+                            "success": False,
+                            "status": True,
+                            "error": "Error: event cost must be a decimal or integer"
+                        })
+            
+            success = startEvent(eventCost, menuId)
 
             if not success:
                 return jsonify({
@@ -73,11 +94,9 @@ def saleUpdate():
     #TODO: Validate data
     sale = request.get_json()
 
-    print(sale)
     if not sale:
         return jsonify({"error":"JSON data not provided"}), 400
 
-    print(sale)
 
     saleId = sale.get("id")
 
@@ -183,7 +202,6 @@ def register():
         session["username"] = username
         success, newUser = createUser(session["username"], password)
         session["user_id"] = newUser["id"]
-        print("THE USER ID IS: ", newUser["id"])
         return redirect("/")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -197,7 +215,6 @@ def login():
         
         loginSuccessful, content = checkLogin(username, password)
         if loginSuccessful:
-            print("login successful, so it should work now right?")
             return redirect("/")
         else:
             return render_template("login.html", loginFailed=True)
@@ -212,7 +229,10 @@ def index():
         status = True
     else:
         status = False
-    return render_template("home.html",eventActive=status)
+    
+    menus = g.supabase.table("menus").select("*").execute()
+    menus = menus.data
+    return render_template("home.html",eventActive=status, menus=menus)
 
 @app.route("/history")
 @login_required
@@ -224,20 +244,44 @@ def history():
 @login_required
 def analytics():
     events = getPastEvents()
-    items = getItems(True)
-    print(events)
 
-    return render_template("analytics.html", events = events, items=items)
+    return render_template("analytics.html", events = events)
 
-@app.route("/inventory", methods=["GET", "POST"])
 @login_required
+@app.route("/inventory", methods=["GET", "POST"])
 def Inventory():
+     if request.method == "GET":
+        menus = getMenus()
+        return render_template("inventory.html", menus=menus)
+     elif request.method == "POST":
+        menuData = request.get_json()
+        menuId = menuData.get("id")
+        print("The id is ", menuId)
+        if not menuData.get("id"): # Create a new menu
+            success, content = newMenu(menuData.get("name"))
+            if success:
+                menuId = content["menuId"]
+            else:
+                return jsonify(content)
+        
+        return jsonify({"success":True, "redirect": url_for("Items", menuId=menuId)})
+
+@app.route("/items", methods=["GET", "POST"])
+@login_required
+def Items():
     if request.method == "GET":
-        items = getItems(True)
+        menuId = request.args.get("menuId")
+        print("menuId", menuId)
+        menu = g.supabase.table("menus").select("id, name").eq("id", menuId).execute()
+        if menu.data == []:
+            return redirect("inventory")
+        menu = menu.data[0]
+        
+        items = getItems(True, menuId)
 
         for item in items:
             item["unit_cost"] = item["cost"] / item["quantity"]
-        return render_template("inventory.html", items=items)
+        return render_template("items.html", items=items, menu=menu)
 
 @app.route("/event")
 @login_required
@@ -245,20 +289,23 @@ def Event():
     #TODO: Re-add sales automatically when page reloads
     eventStatus = getEventStatus()
     if eventStatus:
-        items = getItems(True) # A list of all items and their deals
 
-        current_event_id = supabase.table("event_lock").select("current_event_id").execute().data[0]["current_event_id"]
+
+
+        current_event_id = g.supabase.table("event_lock").select("current_event_id").execute().data[0]["current_event_id"]
+
+        menuId = g.supabase.table("events").select("menu_id").eq("id", current_event_id).execute().data[0]["menu_id"]
+        items = getItems(True, menuId) # A list of all items and their deals
 
         #TODO: add validation for if current_event_id is null
 
         # Previous sales made during this event
-        sales = supabase.table("sales") \
+        sales = g.supabase.table("sales") \
             .select("*") \
             .eq("event_id", current_event_id) \
             .eq("user_id", session["user_id"]) \
             .execute().data     
 
-        print("THE SALES ARE", sales)
         return render_template("event.html", items=items, eventSales=sales)
     else:
         return jsonify("No event currently being held");

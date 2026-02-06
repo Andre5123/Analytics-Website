@@ -1,9 +1,9 @@
 from datetime import datetime
 import pytz
 
-from flask import redirect, render_template, session
+from flask import redirect, render_template, session, g
 from functools import wraps
-from supabase_client import supabase
+from supabase_client import get_supabase
 
 import smtplib
 from email.mime.text import MIMEText
@@ -76,7 +76,7 @@ def login_required(f):
 def checkLogin(username, password):
     # TODO: username validation
     
-    user_info = supabase.table("users") \
+    user_info = g.supabase.table("users") \
         .select("id, password_hash") \
         .eq("username", username) \
         .execute().data
@@ -94,7 +94,7 @@ def checkLogin(username, password):
 # Create new user:
 
 def getUserId(username):
-    id = supabase.table("users") \
+    id = g.supabase.table("users") \
         .select("id") \
         .eq("username", username) \
         .execute().data
@@ -108,7 +108,7 @@ def createUser(username, password):
     if getUserId(username):
         return False, {"success":False, "error":"There is already a user associated with this username"}
 
-    user_info = supabase.table("users") \
+    user_info = g.supabase.table("users") \
         .insert({"username": username, "password_hash":generate_password_hash(password)}) \
         .execute().data
     return True, {"success":True, "id":user_info[0]["id"]}
@@ -118,8 +118,8 @@ def createUser(username, password):
 # Events & Event_Lock Table
 
 # Atomic queries to prevent race conditions on starting events
-def startEvent():
-    result = supabase.table("event_lock") \
+def startEvent(eventCost, menuId):
+    result = g.supabase.table("event_lock") \
         .update({"active": True}) \
         .eq("id", 1) \
         .eq("active", False) \
@@ -131,14 +131,16 @@ def startEvent():
         # Success!
 
         # Make a new entry in the event table
-        response = supabase.table("events").insert({
-            "start_date": datetime.now(pytz.UTC).strftime("%Y-%m-%d %H:%M:%S")
+        response = g.supabase.table("events").insert({
+            "start_date": datetime.now(pytz.UTC).strftime("%Y-%m-%d %H:%M:%S"),
+            "cost":eventCost,
+            "menu_id": menuId,
         }).execute()
 
         newEventId = response.data[0]["id"]
 
         # Update the event lock to include the current event's id
-        supabase.table("event_lock") \
+        g.supabase.table("event_lock") \
             .update({"current_event_id": newEventId}) \
             .eq("id", 1) \
             .eq("active", True) \
@@ -148,7 +150,7 @@ def startEvent():
 
 def stopEvent():
 
-    lock_row = supabase.table("event_lock") \
+    lock_row = g.supabase.table("event_lock") \
         .select("current_event_id") \
         .eq("id", 1) \
         .eq("active", True) \
@@ -159,7 +161,7 @@ def stopEvent():
     
     current_event_id = lock_row.data[0]["current_event_id"] # Save the id of the event that will be stopped
     # Stop the event
-    supabase.table("event_lock") \
+    g.supabase.table("event_lock") \
         .update({"active": False, "current_event_id": None}) \
         .eq("id", 1) \
         .eq("active", True) \
@@ -168,7 +170,7 @@ def stopEvent():
     # Update the current event's entry
     
     if current_event_id is not None:
-        supabase.table("events") \
+        g.supabase.table("events") \
             .update({"end_date": datetime.now(pytz.UTC).strftime("%Y-%m-%d %H:%M:%S")}) \
             .eq("id", current_event_id) \
             .is_("end_date", None) \
@@ -178,7 +180,7 @@ def stopEvent():
     return current_event_id
 
 def getEventStatus():
-    result = supabase.table("event_lock") \
+    result = g.supabase.table("event_lock") \
         .select("active, current_event_id") \
         .eq("id", 1) \
         .execute()
@@ -192,7 +194,7 @@ def getEventStatus():
 # Sales table
 
 def addSale(sale):
-    currentEvent = supabase.table("event_lock") \
+    currentEvent = g.supabase.table("event_lock") \
         .select("active, current_event_id") \
         .eq("id", 1) \
         .execute()
@@ -208,10 +210,10 @@ def addSale(sale):
     # Assumes data has already been server-validated
 
     itemName = sale.get("item")
-    itemData = supabase.table("items").select("*").eq("name", itemName).execute().data[0]
+    itemData = g.supabase.table("items").select("*").eq("name", itemName).execute().data[0]
     unitCost = itemData["cost"] / itemData["quantity"]
     totalCost = unitCost * sale.get("quantity")
-    newSale = supabase.table("sales").insert({
+    newSale = g.supabase.table("sales").insert({
         "event_id": event_id,
         "item": sale.get("item"),
         "quantity": sale.get("quantity"),
@@ -232,7 +234,7 @@ def updateSale(sale):
     if not saleId or not not isinstance(saleId, int):
         return False, {"success":False, "error": "server did not provide a sale id"}
 
-    result = supabase.table("sales").update({
+    result = g.supabase.table("sales").update({
         "item": sale.get("item"),
         "quantity": sale.get("quantity"),
         "revenue": sale.get("revenue"),
@@ -246,25 +248,56 @@ def updateSale(sale):
     return True, {"success":True}
     
 def getPastEvents():
-    events = supabase.table("events") \
-        .select("id, start_date, end_date") \
+    events = g.supabase.table("events") \
+        .select("id, start_date, end_date, cost, menu_id") \
         .order("start_date", desc=True) \
         .execute()
     events = events.data # Table containing all event entries
     for event in events:
-
         eventId = event["id"]
-        sales = supabase.table("sales") \
+        sales = g.supabase.table("sales") \
         .select("*") \
         .eq("event_id", eventId) \
         .order("sale_time", desc=True) \
         .execute()
         event["sales"] = sales.data
+
+        menuItems = g.supabase.table("items").select("*") \
+        .eq("menu_id", event["menu_id"]) \
+        .execute()
+
+        menu = g.supabase.table("menus").select("*").eq("id", event["menu_id"]).execute()
+        menuName = menu.data[0]["name"]
+        event["menu_name"] = menuName 
+        event["menu_items"] = menuItems.data
+
+
     return events
 
-def getItems(includeDeals):
-    items = supabase.table("items") \
+def newMenu(name):
+    alreadyExists = g.supabase.table("menus").select("*").eq("name",name).execute()
+    if alreadyExists.data == []: # create new one
+        newMenu = g.supabase.table("menus").insert({
+            "name": name
+        }, returning="representation").execute()
+        return True, {"success": True, "menuId": newMenu.data[0]["id"]}
+    else:
+        return True, {"success": True, "menuId": alreadyExists.data[0]["id"]}
+
+def getMenus():
+    menus = g.supabase.table("menus") \
         .select("*") \
+        .execute()
+    
+    menus = menus.data
+
+    return menus
+
+
+def getItems(includeDeals, menuId):
+    items = g.supabase.table("items") \
+        .select("*") \
+        .eq("menu_id", menuId) \
         .execute()
     
     items = items.data
@@ -272,7 +305,7 @@ def getItems(includeDeals):
     if includeDeals:
         for item in items:
             product_id = item["id"]
-            deals = supabase.table("deals") \
+            deals = g.supabase.table("deals") \
                 .select("*") \
                 .eq("product_id", product_id) \
                 .order("quantity") \
@@ -288,13 +321,15 @@ def getItems(includeDeals):
 def updateItem(item):
     # Update item if item already exists
     if item.get("id") is None: # item does not exist, add new item
-        newItem = supabase.table("items").insert({
+        newItem = g.supabase.table("items").insert({
             "name": item.get("name"),
             "quantity": item.get("quantity"),
             "cost": item.get("cost"),
-        }).execute()
+            "menu_id": item.get("menu_id"),
+        }, returning="representation").execute()
+        return True, {"success":True, "itemId":newItem.data[0]["id"]}
     else: #item exists, update item
-        item = supabase.table("items") \
+        item = g.supabase.table("items") \
             .update({"name": item.get("name"),
                     "quantity": item.get("quantity"),
                     "cost": item.get("cost")
@@ -307,16 +342,15 @@ def updateItem(item):
 # Delete item
 def deleteItem(item):
     # Update item if item already exists
-    print("ITEM TO DELETE:", item)
 
-    product_id = supabase.table("items").select("id").eq("name", item.get("name")).execute().data[0]["id"]
+    product_id = item.id
 
-    result = supabase.table("deals").delete() \
+    result = g.supabase.table("deals").delete() \
     .eq("product_id", product_id) \
     .execute()
 
-    result = supabase.table("items").delete() \
-    .eq("name", item.get("name")) \
+    result = g.supabase.table("items").delete() \
+    .eq("id", item.id) \
     .execute()
     
     return True, {"success":True}
@@ -325,19 +359,19 @@ def deleteItem(item):
 # Update a deal on an item
 def updateDeal(deal):
     dealId = deal.get("id")
-    itemName = deal.get("item")
-    product_id = supabase.table("items").select("id").eq("name", itemName).execute().data[0]["id"]
+    product_id = deal.get("product_id")
     quantity = deal.get("quantity")
     revenue = deal.get("revenue")
    
     if dealId is None: # item does not exist, add new item
-        newDeal = supabase.table("deals").insert({
+        newDeal = g.supabase.table("deals").insert({
             "product_id": product_id,
             "quantity": quantity,
             "revenue": revenue,
-        }).execute()
+        }, returning="representation").execute()
+        return True, {"success": True, "dealId": newDeal.data[0]["id"]}
     else: #item exists, update item
-        newDeal = supabase.table("deals").update({
+        newDeal = g.supabase.table("deals").update({
             "quantity": quantity,
             "revenue": revenue,
         }) \
