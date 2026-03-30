@@ -1,8 +1,8 @@
 const newSaleButton = document.querySelector("#newSale")
 const saleTemplate = document.querySelector("#sale_template")
-
+const subscriptionTemplate = document.querySelector("#subscription_template")
 const salesContainer = document.querySelector("#sales")
-
+const subSalesContainer = document.querySelector("#subscriptionSales")
 const items = window.items
 
 const itemOptions = document.querySelector("#itemOptions")
@@ -12,16 +12,23 @@ const customRevenueField = document.querySelector("#customRevField")
 
 const paymentMethodOptions = document.querySelector("#paymentMethodOptions")
 
+const subscriptionContainer = document.querySelector("#subscriptionOptions")
+const subscriptionOptions = document.querySelector("#subscriptions")
+const subscriberNameField = document.querySelector("#subscriberNameField")
+const newSubscription = document.querySelector("#newSubscription")
+
 const errorText = document.querySelector("#errorMessage")
 
 let selectedItem = null
 let selectedPaymentMethod = null
 let selectedQuantity = null
 let customRevenue = null
-
+let selectedSubscription = null
+let selectedSubscriber = null
 
 // Create new sale
 newSale.addEventListener("click", (event)=>{
+
 
     if (selectedItem != null && selectedPaymentMethod!=null && selectedQuantity!=null) {
         // Create new sale
@@ -29,13 +36,14 @@ newSale.addEventListener("click", (event)=>{
         newSale.querySelector("#item").textContent = selectedItem;
         newSale.querySelector("#quantity").value = selectedQuantity;
         newSale.querySelector("#paymentMethod").value = selectedPaymentMethod;
-        if (customRevenue){
-
+        if (customRevenue != null){
+            customRevenue = customRevenueField.value
             newSale.querySelector("#amtPaid").textContent = customRevenue;
+            newSale.querySelector("#customAmtPaid").value = customRevenue;
         }
         else {
             let price = calculatePrice(selectedItem, selectedQuantity);
-            newSale.querySelector("#amtPaid").textContent = price["price"];
+            newSale.querySelector("#amtPaid").textContent = price["price"].toFixed(2);
             let dealsApplied = price["dealsApplied"]
             let dealsAppliedCont = newSale.querySelector("#dealsApplied")
 
@@ -47,6 +55,11 @@ newSale.addEventListener("click", (event)=>{
                 dealsAppliedCont.append(p);
             }
         }
+
+        if (selectedPaymentMethod == "subscription"){
+            newSale.querySelector("#subscriber").value = document.querySelector("#subscriberSelect").value
+        }
+
         newSale.classList.remove("d-none");
         newSale.classList.add("d-flex");
         newSale.id = '';
@@ -77,6 +90,89 @@ newSale.addEventListener("click", (event)=>{
     }
 })
 
+// Select a subscription
+subscriptionOptions.addEventListener("click", (event)=>{
+    let sub = event.target;
+    console.log(sub, "is the thing")
+    
+    if (sub.id.includes("Subscription")) {
+        // Select the subscription
+        
+        selectedSubscription = parseInt(sub.textContent);
+
+        // Add css for selecting the current option and remove from the other options
+        Array.from(subscriptionOptions.children).forEach(option => {
+            console.log("OK ", option);
+            option.classList.remove("selected")
+        })
+        sub.classList.add("selected")
+    }
+})
+
+// Register a subscription
+newSubscription.addEventListener("click", (event)=> {
+    let subscriberName = subscriberNameField.value || null
+    if (subscriberName === "" || subscriberName == null){
+        errorText.textContent = "Please enter the name of the subscriber"
+        return
+    }
+    console.log("selected subscription is", selectedSubscription)
+    if (selectedSubscription == null) {
+        errorText.textContent = "Please select a subscription"
+        return
+    }
+
+    let newSub = subscriptionTemplate.cloneNode(true);
+    newSub.querySelector("#price").textContent = selectedSubscription+"$ Subscription sold to:";
+    newSub.querySelector("#name").textContent = subscriberName;
+
+    newSub.classList.remove("d-none");
+    newSub.classList.add("d-flex");
+    newSub.id = '';
+    
+
+
+    data = {
+        "id":null,
+        "price":selectedSubscription,
+        "name":subscriberName,
+    }
+
+    fetch("/update-subscriber",{
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(data)
+        })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            if (data.subscriberId) { // First time saving sale, it will be assigned an ID by the server
+                newSub.id = data.subscriberId;
+                
+                
+            console.log("Sub Sale id successfully created")
+
+            }
+            console.log("Sub Sale successfully saved")
+            window.location.reload();
+        }
+        else {
+            console.log("Error, sub sale did not successfully save", data)
+            errorText.textContent = "Error: "+data.error;
+        }
+    })
+    .catch(error => console.error("Error:", error));
+    subSalesContainer.insertBefore(newSub,subSalesContainer.firstElementChild.nextElementSibling);
+    selectedSubscription = null;
+
+    
+
+    Array.from(subscriptionOptions.children).forEach(option => {
+        option.classList.remove("selected");
+    })
+
+})
+
 // Select an item
 quantityOptions.addEventListener("click", (event)=>{
     let quantity = event.target;
@@ -101,6 +197,15 @@ quantityOptions.addEventListener("click", (event)=>{
     }
 })
 
+// Update custom quantity
+quantityOptions.addEventListener("input", (event)=>{
+    let customQtyButton = quantityOptions.querySelector("#customQuantity")
+    let quantityField = event.target;
+    if (quantityField.id === "customQtyField" && customQtyButton.classList.contains("selected")){
+        selectedQuantity = quantityField.value
+    }
+})
+
 itemOptions.addEventListener("click", (event)=>{
     let item = event.target;
 
@@ -120,13 +225,19 @@ itemOptions.addEventListener("click", (event)=>{
 })
 
 customRevenueOption.addEventListener("click", (event)=>{
-    if (customRevenue === null) {
-        customRevenue = customRevenueField.value || 0;
-        customRevenueOption.classList.add("selected");
-    }
-    else {
+    if (customRevenueOption.classList.contains("selected")) {
         customRevenueOption.classList.remove("selected");
         customRevenue = null;
+    }
+    else {
+        customRevenue = customRevenueField.value;
+        customRevenueOption.classList.add("selected");
+    }
+})
+
+customRevenueField.addEventListener("input", (event)=>{
+    if (customRevenueOption.classList.contains("selected")) {
+        customRevenue = customRevenueField.value;
     }
 })
 
@@ -220,6 +331,19 @@ salesContainer.addEventListener("input", (event)=>{
                 dealsAppliedCont.append(p);
             }
         }
+
+        //GUI visuals: Making the subscriber list visible if payment is by subscription
+        let payment_method = sale.querySelector("#paymentMethod");
+        console.log("about ", payment_method)
+        console.log(payment_method.value)
+        if (payment_method.value == "subscription"){
+            console.log("change it")
+            sale.querySelector("#subscriber").style.display = "inline"
+            console.log(sale.querySelector("#subscriber"))
+        }
+        else {
+            sale.querySelector("#subscriber").style.display = "none"
+        }
     }
 })
 // Updates the server that a new sale has been added or an existing one was modified
@@ -231,6 +355,7 @@ function updateSale(sale) {
     const date = new Date(sale.querySelector("#date").textContent);
     const paymentMethod = sale.querySelector("#paymentMethod").value;
 
+
     data = {
         "id":id,
         "item":item,
@@ -238,6 +363,10 @@ function updateSale(sale) {
         "revenue":amtPaid,
         "sale_time":date,
         "payment_method":paymentMethod
+    }
+
+    if (paymentMethod == "subscription"){
+        data["subscriber_id"] = sale.querySelector("#subscriber").value
     }
 
     fetch("/update-sale",{
@@ -254,10 +383,16 @@ function updateSale(sale) {
 
             }
             console.log("Sale successfully saved")
+            if (paymentMethod == "subscription"){
+                window.location.reload();
+            }
         }
         else {
             console.log("Error, sale did not successfully save", data)
             errorText.textContent = "Error: "+data.error;
+            if (paymentMethod == "subscription"){
+                window.location.reload();
+            }
         }
     })
     .catch(error => console.error("Error:", error));

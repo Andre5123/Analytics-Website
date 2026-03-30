@@ -17,6 +17,38 @@ Inventory
     <h3>Add a menu</h3>
     <input type="text" id="newMenu" placeholder="New menu name">
     <button id="newMenuButton">Add New Menu</button>
+    <h3>Subscriptions</h3>
+    <div id="subscriptionTemplate" style="display: none;">
+        <div id="price">5$ Subscription </div>
+        <div id="balance">6$ Balance </div>
+        <div>Subscribers:</div>
+        <ul id="subscriberList">
+
+        </ul>
+    </div>
+    <div id="subscriptions">
+    {% for subscription in subscriptions %}
+
+        <div id="{{subscription.id}}" style="border-radius: 4px;">
+            <div id="price">{{subscription.price}}$ Subscription</div>
+            <div id="balance">{{subscription.balance}}$ Balance</div>
+            <div>Subscribers:</div>
+            
+            <ul id="subscriberList">
+                {% for subscriber in subscription.subscribers %}
+                    <li id="{{subscriber.id}}">
+                        <span id="subscriberName">{{subscriber.name}}</span>
+                        <span id="subscriberBalance">${{subscriber.balance}} left</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+    {% endfor %}
+    </div>
+    <h3>Add a subscription</h3>
+    <input type="number" min="0" step="0.01" id="subscriptionPrice" placeholder="Price">
+    <input type="number" min="0" step="0.01" id="subscriptionBalance" placeholder="$ Balance">
+    <button id="newSubscriptionButton">Add New Subscription</button>
 </div>
 
 <script src="static/js/inventory.js"></script>

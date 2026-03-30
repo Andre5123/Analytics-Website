@@ -8,8 +8,8 @@ logging.basicConfig(
 from flask import Flask, redirect, render_template, request, session, jsonify, url_for, g
 from flask_session import Session
 from helpers import toSQLDATETIME, toJSStringDate, login_required, \
-    startEvent, stopEvent, getEventStatus, addSale, updateSale, getPastEvents, getItems, getMenus, \
-    newMenu, updateItem, deleteItem, updateDeal, checkLogin,createUser, getUserId
+    startEvent, stopEvent, getEventStatus, addSale, updateSale, getPastEvents, getItems, getMenus, getSubscriptions, \
+    newMenu, updateItem, deleteItem, updateDeal, checkLogin,createUser, getUserId, addSubscription, addSubscriber 
 from cs50 import SQL
 from datetime import datetime
 import smtplib
@@ -87,7 +87,29 @@ def getEvent():
             "status": newStatus
             })
     
+@app.route("/update-subscriber", methods=["POST"])
+def subscriptionUpdate():
+    subscriber = request.get_json()
+    if not subscriber:
+        return jsonify({"error":"JSON data not provided"}), 400
 
+
+    subscriberId = subscriber.get("id")
+
+    # Validate sale data TODO
+    
+
+    # Newly created sale
+    if not subscriberId:
+        success, content = addSubscriber(subscriber)
+        if not success:
+            print("Error: ", content["error"])
+        return jsonify(content)
+    else:
+        pass
+
+
+    
 
 @app.route("/update-sale", methods=["POST"])
 def saleUpdate():
@@ -137,6 +159,13 @@ def removeItem():
 
     item = request.get_json()
     success, content = deleteItem(item)
+    return jsonify(content)
+
+@app.route("/new-subscription", methods=["POST"])
+def newSubscription():
+    subData = request.get_json()
+    
+    success, content = addSubscription(subData)
     return jsonify(content)
 
 @app.route("/update-deal", methods=["POST"])
@@ -245,6 +274,8 @@ def history():
 def analytics():
     events = getPastEvents()
 
+    
+
     return render_template("analytics.html", events = events)
 
 @login_required
@@ -252,7 +283,8 @@ def analytics():
 def Inventory():
      if request.method == "GET":
         menus = getMenus()
-        return render_template("inventory.html", menus=menus)
+        subscriptions = getSubscriptions()
+        return render_template("inventory.html", menus=menus, subscriptions=subscriptions)
      elif request.method == "POST":
         menuData = request.get_json()
         menuId = menuData.get("id")
@@ -265,6 +297,9 @@ def Inventory():
                 return jsonify(content)
         
         return jsonify({"success":True, "redirect": url_for("Items", menuId=menuId)})
+     
+@login_required
+
 
 @app.route("/items", methods=["GET", "POST"])
 @login_required
@@ -290,8 +325,6 @@ def Event():
     eventStatus = getEventStatus()
     if eventStatus:
 
-
-
         current_event_id = g.supabase.table("event_lock").select("current_event_id").execute().data[0]["current_event_id"]
 
         menuId = g.supabase.table("events").select("menu_id").eq("id", current_event_id).execute().data[0]["menu_id"]
@@ -304,11 +337,34 @@ def Event():
             .select("*") \
             .eq("event_id", current_event_id) \
             .eq("user_id", session["user_id"]) \
-            .execute().data     
+            .order("id", desc=True) \
+            .order("sale_time", desc=True) \
+            .execute().data
 
-        return render_template("event.html", items=items, eventSales=sales)
+        subSales = g.supabase.table("subscribers") \
+            .select("*") \
+            .eq("event_id", current_event_id) \
+            .execute().data  
+        
+        for subSale in subSales:
+            subscription = g.supabase.table("subscriptions") \
+                .select("*") \
+                .eq("id", subSale["subscription_id"]) \
+                .execute().data[0]
+            subSale["price"] = subscription["price"]
+        
+        subscriptions = g.supabase.table("subscriptions")\
+            .select("*") \
+            .execute().data
+
+        subscribers = g.supabase.table("subscribers")\
+            .select("*") \
+            .order("name") \
+            .execute().data    
+
+        return render_template("event.html", items=items, eventSales=sales, eventSubSales = subSales, subscriptions=subscriptions, subscribers=subscribers)
     else:
-        return jsonify("No event currently being held");
+        return jsonify("No event currently being held")
 
 #TODO: SQL DATABASE with unique ID for different events, and unique ID for different sales
 

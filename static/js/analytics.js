@@ -6,6 +6,7 @@ var pastEvents = window.events;
 
 
 for (const event of pastEvents) {
+    console.log("event", event)
     newEventDiv = eventTemplate.cloneNode(true);
     newEventDiv.style.display = "";
     newEventDiv.querySelector("h2").innerHTML = "Event: "+event["start_date"]
@@ -21,10 +22,16 @@ for (const event of pastEvents) {
     for (let i=0; i<sales.length; i++){
         let item = sales[i]["item"];
         if (!(items[item])) {
-            items[item] = {"totalCost": 0, "totalRevenue": 0, "unitsSold":0};
+            items[item] = {"totalCost": 0, "totalRevenue": 0, "unitsSold":0, "unitsRedeemed":0};
         }
-        items[item]["unitsSold"] += sales[i]["quantity"];
-        items[item]["totalRevenue"] += sales[i]["revenue"];
+        
+        if (sales[i]["payment_method"] != "subscription"){
+            items[item]["unitsSold"] += sales[i]["quantity"];
+            items[item]["totalRevenue"] += sales[i]["revenue"];
+        }
+        else {
+            items[item]["unitsRedeemed"] += sales[i]["quantity"];
+        }
         items[item]["totalCost"] += sales[i]["cost"];
     }
 
@@ -42,12 +49,22 @@ for (const event of pastEvents) {
         quantity.innerHTML = "Total units sold: "+items[item]["unitsSold"];
         newEventDiv.append(quantity);
 
+        let redeemedQuantity = document.createElement("p");
+        redeemedQuantity.innerHTML = "Total units redeemed by subscription: "+items[item]["unitsRedeemed"];
+        newEventDiv.append(redeemedQuantity);
+
         let cost = document.createElement("p");
         cost.innerHTML = "Total cost from item: $"+ items[item]["totalCost"];
         newEventDiv.append(cost);
         totalSalesCost += items[item]["totalCost"];
     }
 
+    let subscriptionRevenue = 0
+    for (let subSale of event["subSales"]) {
+        console.log(subSale, "is the sale")
+        eventRevenue += subSale["price"]
+        subscriptionRevenue += subSale["price"]
+    }
     let eventCost = event["cost"]
     eventProfit = eventRevenue - Math.max(eventCost, totalSalesCost);
 
@@ -56,11 +73,13 @@ for (const event of pastEvents) {
     const totalProfitHeader = newEventDiv.querySelector("#totalProfit")
     const eventCostHeader = newEventDiv.querySelector("#eventCost")
     const totalSalesCostHeader = newEventDiv.querySelector("#totalSalesCost")
+    const subscriptionRevenueHeader = newEventDiv.querySelector("#subscriptionRevenue")
     const menuHeader = newEventDiv.querySelector("#menu")
     totalRevenueHeader.textContent = "Total Revenue: $"+eventRevenue.toFixed(2);
     totalProfitHeader.textContent = "Total Profit: $"+eventProfit.toFixed(2);
     eventCostHeader.textContent = "Event Cost: $"+eventCost.toFixed(2);
     totalSalesCostHeader.textContent = "Total Sales Cost: $"+totalSalesCost.toFixed(2);
+    subscriptionRevenueHeader.textContent = "Revenue from Subscriptions: $"+subscriptionRevenue.toFixed(2);
     menuHeader.textContent = "Menu: "+event["menu_name"]
 }
 

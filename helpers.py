@@ -207,6 +207,56 @@ def addSale(sale):
     if not event_active or not event_id:
         return False, {"success":False, "error": "event is inactive / has been closed"}
     
+    subscriberId = sale.get("subscriber_id")
+    newSubscriberBalance = 0
+    if subscriberId:
+        subscriber = g.supabase.table("subscribers") \
+            .select("*") \
+            .eq("id", subscriberId) \
+            .execute().data
+        
+        if subscriber == []:
+            return False, {"success":False, "error": "Could not find subscriber"}
+        
+        subscriber = subscriber[0]
+
+        
+        
+        # recalculate the new subscriber Balance by counting up all of their purchases.
+        subscription = g.supabase.table("subscriptions").select("*") \
+            .eq("id", subscriber["subscription_id"]) \
+            .execute().data
+        
+        if subscription == []:
+            return False, {"success":False, "error": "Subscriber does not have an existing subscription"}
+
+        subscription = subscription[0]
+
+        expenditures = g.supabase.table("sales").select("*").eq("subscriber_id", subscriberId).execute().data
+        totalSpent = sale.get("revenue")
+
+        for Sale in expenditures:
+            totalSpent += Sale["revenue"]
+
+        # subtract the total expenditures from the initial balance
+        newSubscriberBalance = subscription["balance"] - totalSpent
+        print("new balance is", newSubscriberBalance)
+        if newSubscriberBalance < 0:
+            print(subscriber, subscription, totalSpent, "are the data")
+            return False, {"success":False, "error": "Subscriber does not have enough money, this sale update may not be saved."}
+        
+        
+        result = g.supabase.table("subscribers").update({
+                "balance": newSubscriberBalance
+            }) \
+            .eq("id", subscriberId) \
+            .execute()
+        
+        
+
+
+
+    
     # Assumes data has already been server-validated
 
     itemName = sale.get("item")
@@ -221,7 +271,8 @@ def addSale(sale):
         "cost": totalCost,
         "sale_time": toSQLDATETIME(sale.get("sale_time")),
         "payment_method": sale.get("payment_method"),
-        "user_id": session["user_id"]
+        "user_id": session["user_id"],
+        "subscriber_id": subscriberId
     }).execute()
 
     sale_id = newSale.data[0]["id"]
@@ -230,16 +281,81 @@ def addSale(sale):
     
 
 def updateSale(sale):
+    print("the sale is", sale)
     saleId = sale.get("id")
     if not saleId or not not isinstance(saleId, int):
         return False, {"success":False, "error": "server did not provide a sale id"}
 
+    subscriberId = sale.get("subscriber_id")
+    newSubscriberBalance = 0
+    if subscriberId:
+        subscriber = g.supabase.table("subscribers") \
+            .select("*") \
+            .eq("id", subscriberId) \
+            .execute().data
+        
+        if subscriber == []:
+            return False, {"success":False, "error": "Could not find subscriber"}
+        
+        subscriber = subscriber[0]
+
+        
+        
+        # recalculate the new subscriber Balance by counting up all of their purchases.
+        subscription = g.supabase.table("subscriptions").select("*") \
+            .eq("id", subscriber["subscription_id"]) \
+            .execute().data
+        
+        if subscription == []:
+            return False, {"success":False, "error": "Subscriber does not have an existing subscription"}
+
+        subscription = subscription[0]
+
+        expenditures = g.supabase.table("sales").select("*").eq("subscriber_id", subscriberId).execute().data
+        totalSpent = sale.get("revenue")
+
+        for Sale in expenditures:
+            print(totalSpent)
+            totalSpent += Sale["revenue"]
+
+        # subtract the total expenditures from the initial balance
+        newSubscriberBalance = subscription["balance"] - totalSpent
+        print("new balance is", newSubscriberBalance)
+        if newSubscriberBalance < 0:
+            print(subscriber, subscription, totalSpent, "are the data")
+            return False, {"success":False, "error": "Subscriber does not have enough money, this sale update may not be saved."}
+        
+        
+        result = g.supabase.table("subscribers").update({
+                "balance": newSubscriberBalance
+            }) \
+            .eq("id", subscriberId) \
+            .execute()
+    
+    currentSale = g.supabase.table("sales").select("*").eq("id", saleId).execute().data[0]
+
+    # Recalculate the previous subscriber's balance and reimburse them.
+    if currentSale["subscriber_id"] != subscriberId and currentSale["subscriber_id"]:
+
+        prevSubscriber = g.supabase.table("subscribers").select("*") \
+            .eq("id", currentSale["subscriber_id"]) \
+            .execute().data[0]
+        
+
+        g.supabase.table("subscribers").update({
+            "balance": prevSubscriber["balance"] + currentSale["revenue"]
+        }) \
+        .eq("id", currentSale["subscriber_id"]) \
+        .execute()
+
+    print("the subscriber's id is", subscriberId)
     result = g.supabase.table("sales").update({
         "item": sale.get("item"),
         "quantity": sale.get("quantity"),
         "revenue": sale.get("revenue"),
         "sale_time": toSQLDATETIME(sale.get("sale_time")),
-        "payment_method": sale.get("payment_method")
+        "payment_method": sale.get("payment_method"),
+        "subscriber_id": subscriberId
     }) \
     .eq("id", saleId) \
     .execute()
@@ -247,6 +363,63 @@ def updateSale(sale):
 
     return True, {"success":True}
     
+def addSubscription(data):
+    
+    # Assumes data has already been server-validated
+
+    itemPrice = data.get("price")
+    itemBalance= data.get("balance")
+    
+    if g.supabase.table("subscriptions").select("*").eq("price", itemPrice).execute().data != []:
+        return False, {"success":False, "error": "A subscription has already been made with this price"}
+    
+    newSale = g.supabase.table("subscriptions").insert({
+        "price": itemPrice,
+        "balance": itemBalance
+    }).execute()
+
+    subscription_id = newSale.data[0]["id"]
+
+    return True, {"success":True, "subscriptionId":subscription_id}
+
+def addSubscriber(data):
+    
+    # Assumes data has already been server-validated
+
+    subPrice = data.get("price")
+    subName = data.get("name")
+    subscription =  g.supabase.table("subscriptions").select("*").eq("price", subPrice).execute().data # Find the specific subscription by unique price
+
+    currentEvent = g.supabase.table("event_lock") \
+        .select("active, current_event_id") \
+        .eq("id", 1) \
+        .execute()
+    
+    if not currentEvent.data:
+        return False, {"success":False,"error": "could not find event_lock entry"}
+    
+    event_id = currentEvent.data[0]["current_event_id"]
+    event_active = currentEvent.data[0]["active"]
+    if not event_active or not event_id:
+        return False, {"success":False, "error": "event is inactive / has been closed"}
+
+    if subscription == []:
+        return False, {"success":False, "error": "Could not find a subscription with this price"}
+    else:
+        subscription = subscription[0]
+    
+    newSubscriber = g.supabase.table("subscribers").insert({
+        "subscription_id": subscription["id"], \
+        "event_id": event_id, \
+        "balance": subscription["balance"], \
+        "name": subName \
+    }).execute()
+    
+
+    subscriber_id = newSubscriber.data[0]["id"]
+
+    return True, {"success":True, "subscriberId":subscriber_id}
+
 def getPastEvents():
     events = g.supabase.table("events") \
         .select("id, start_date, end_date, cost, menu_id") \
@@ -271,7 +444,19 @@ def getPastEvents():
         event["menu_name"] = menuName 
         event["menu_items"] = menuItems.data
 
+        subSales = g.supabase.table("subscribers") \
+            .select("*") \
+            .eq("event_id", eventId) \
+            .execute().data  
+        
+        for subSale in subSales:
+            subscription = g.supabase.table("subscriptions") \
+                .select("*") \
+                .eq("id", subSale["subscription_id"]) \
+                .execute().data[0]
+            subSale["price"] = subscription["price"]
 
+        event["subSales"] = subSales
     return events
 
 def newMenu(name):
@@ -293,6 +478,23 @@ def getMenus():
 
     return menus
 
+def getSubscriptions():
+    subscriptions = g.supabase.table("subscriptions") \
+        .select("*") \
+        .order("price") \
+        .order("balance") \
+        .execute().data
+    
+    for subscription in subscriptions:
+        print(subscription, "is the Subscription")
+        subscribers = g.supabase.table("subscribers") \
+            .select("*") \
+            .eq("subscription_id", subscription["id"]) \
+            .execute().data
+        
+        subscription["subscribers"] = subscribers
+
+    return subscriptions
 
 def getItems(includeDeals, menuId):
     items = g.supabase.table("items") \

@@ -6,6 +6,7 @@ New event
 {% block body %}
 <script>
     window.items = {{items | tojson}}
+    window.subscriptions = {{subscriptions | tojson}}
 </script>
 <link rel="stylesheet" href="static/css/event.css">
 <h3 id="newSaleHeader">New Sale</h3>
@@ -32,12 +33,53 @@ New event
 
 <div id="paymentMethodOptions">
     <button id="cashPaymentMethod">Cash</button>
-    <button id="tapPaymentMethod">Tap</button>        
+    <button id="tapPaymentMethod">Tap</button>
+    <button id="subPaymentMethod">Subscription</button>
+    <select id="subscriberSelect">
+        {% for subscriber in subscribers %}
+            <option id="{{subscriber.id}} " value="{{subscriber.id}}">
+                <span>{{subscriber.name}}: $</span>
+                <span id="subscriberBalance">{{subscriber.balance}} left</span>
+            </option>
+        {% endfor %}
+    </select>        
 </div>
 
 <button id="newSale">New Sale</button>
+
+<h3 id="newSubscriptionHeader">New Subscription</h3>
+
+<div id="subscriptionOptions">
+    <div id="subscriptions">
+        {% for sub in subscriptions %}
+            <span>Subscription: $</span>
+            <button id="{{sub['price']}}Subscription">{{sub['price']}}</button>
+        {% endfor %}
+    </div>
+    <input type="text" id="subscriberNameField">
+    <button id="newSubscription">Register</button>
+</div>
 <h3 id ="errorMessage"></h3>
-<div id="sales" class="container">
+<div id="subscriptionSales" class="container">
+
+    <div id="subscription_template" class="d-none subscriptionSold">
+        <div>
+            <span id="price">$ Subscription:</span>
+            <span id="name">Name</span>
+        </div>
+    </div>
+
+     {% for subSale in eventSubSales %}
+        <div id="{{subSale['id']}}" class="d-flex subscriptionSold">
+        <div>
+            <label for="price">{{subSale.price}}$ Subscription sold to:</label>
+            <span id="name">{{subSale.name}}</span>
+        </div>
+    </div>
+     {% endfor %}
+</div>
+
+<div id="sales" class="container" style="display: block">
     <div id="sale_template" class="d-none sale">
         <form class="row cell align-items-center" style="width: 100%;">
             <div class="col-1">
@@ -52,13 +94,22 @@ New event
                 <h6>Deals applied</h6>
             </div>
             <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid" style="background-color:rgba(250, 235, 215, 0.838);">
-            <span class="col-1">date: </span>
             <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">December</span>
             <div class="col-1">
                 <label for="paymentMethod">Cash/Tap</label>
                 <select id="paymentMethod" style="background-color: burlywood;">
                     <option value="cash" >Cash</option>
                     <option value="tap">Tap</option>
+                    <option value="subscription">Subscription</option>
+                </select>
+            </div>
+            <div class="col-1">
+                <select id="subscriber" style="background-color: burlywood; display: none;">
+                    {% for subscriber in subscribers %}
+                        <option id="{{subscriber.id}}" value="{{subscriber.id}}">
+                            {{subscriber.name}}: ${{subscriber.balance}} left
+                        </option>
+                    {% endfor %}
                 </select>
             </div>
             <button class="col-1" id="update">Update</button>
@@ -81,13 +132,20 @@ New event
                     <h6>Deals applied</h6>
                 </div>
                 <input class="col-2" type ="number" id="customAmtPaid" placeholder="custom amount paid" style="background-color:rgba(250, 235, 215, 0.838);">
-                <span class="col-1">date: </span>
                 <span class="col-2" id="date" style="width: 100px; height: 50px; font-size: 10px;">{{sale["sale_time"]}}</span>
-                <div class="col-1">
+                <div class="col-2">
                     <label for="paymentMethod">Cash/Tap</label>
                     <select id="paymentMethod" style="background-color: burlywood;">
                         <option value="cash" {% if sale.payment_method == 'cash' %}selected{% endif %}>Cash</option>
                         <option value="tap" {% if sale.payment_method == 'tap' %}selected{% endif %}>Tap</option>
+                        <option value="subscription" {% if sale.payment_method == 'subscription' %}selected{% endif %}>Subscription</option>
+                    </select>
+                </div>
+                <div class="col-1">
+                    <select id="subscriber" style="background-color: burlywood; {% if sale.payment_method != 'subscription' %}display: none;{% endif %}">
+                        {% for subscriber in subscribers %}
+                            <option id="{{subscriber.id}}" value="{{subscriber.id}}" {% if sale.subscriber_id == subscriber.id %}selected{% endif %}>{{subscriber.name}}: ${{subscriber.balance}} left</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <button class="col-1" id="update">Update</button>
