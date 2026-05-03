@@ -66,7 +66,7 @@ for (const event of pastEvents) {
         subscriptionRevenue += subSale["price"]
     }
     let eventCost = event["cost"]
-    eventProfit = eventRevenue - Math.max(eventCost, totalSalesCost);
+    eventProfit = eventRevenue - eventCost; //Math.max(eventCost, totalSalesCost);
 
     // Display the event totals
     const totalRevenueHeader = newEventDiv.querySelector("#totalRevenue")
